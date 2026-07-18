@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.ruff_cache/
+finance_automation/backend/uploads/
+finance_automation/backend/outputs/
+finance_automation/backend/templates/
+finance_automation/logs/
+finance_automation/frontend/node_modules/
+finance_automation/frontend/build/
+*.pptx
+*.xlsx
+*.log
+.DS_Store
+Thumbs.db
+nul
