@@ -30,11 +30,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden px-4 py-8 font-sans text-slate-900 bg-[#eaf8ff] auth-grid">
-      <div className="absolute inset-y-0 left-[30%] w-[22%] bg-white/55 -skew-x-12 pointer-events-none" />
-      <div className="absolute inset-y-0 right-[20%] w-[16%] bg-white/50 -skew-x-12 pointer-events-none" />
-      <div className="absolute bottom-0 right-0 h-[46%] w-[38%] bg-emerald-200/55 -skew-x-12 translate-x-20 pointer-events-none" />
-
+    <div className="auth-shell min-h-screen relative overflow-hidden px-4 py-8 font-sans text-slate-900">
       <div className="relative z-10 min-h-[calc(100vh-4rem)] flex items-center justify-center">
         <div className="w-full max-w-[420px] bg-white rounded-[22px] shadow-[0_24px_70px_rgba(77,112,148,0.18)] overflow-hidden">
           <div className="px-6 sm:px-8 pt-8 pb-7 text-center border-b border-slate-200">
