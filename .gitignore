@@ -1,6 +1,11 @@
 __pycache__/
 *.pyc
+.venv/
+venv/
+.env
 .ruff_cache/
+.pytest_cache/
+.mypy_cache/
 finance_automation/backend/uploads/
 finance_automation/backend/outputs/
 finance_automation/backend/templates/
