@@ -111,6 +111,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        env_prefix = "FINANCE_"
         extra = "allow"
 
 
