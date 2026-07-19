@@ -7,6 +7,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from api.routes import router
+from app.routes.auth_routes import auth_router
+from app.routes.user_routes import user_router
+from app.routes.audit_routes import audit_router
 from utils.logger import logger
 
 app = FastAPI(
@@ -24,6 +27,9 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(auth_router)
+app.include_router(user_router)
+app.include_router(audit_router)
 
 
 @app.on_event("startup")
@@ -31,6 +37,34 @@ async def startup_event():
     logger.info(f"{settings.APP_NAME} v{settings.APP_VERSION} starting up")
     logger.info(f"Upload dir: {settings.UPLOAD_DIR}")
     logger.info(f"Output dir: {settings.OUTPUT_DIR}")
+    
+    # Initialize DB & Seed Admin
+    try:
+        from app.database.connection import engine, SessionLocal
+        from app.models.user_and_log import Base, User
+        from app.auth.jwt_handler import get_password_hash
+        
+        logger.info("Initializing database tables...")
+        Base.metadata.create_all(bind=engine)
+        
+        db = SessionLocal()
+        admin_exists = db.query(User).filter(User.role == "Admin").first()
+        if not admin_exists:
+            logger.info("Seeding default Admin account...")
+            default_admin = User(
+                full_name="System Administrator",
+                email="admin@finance.com",
+                password_hash=get_password_hash("adminpassword"),
+                role="Admin",
+                status="Approved",
+                is_active=True
+            )
+            db.add(default_admin)
+            db.commit()
+            logger.info("Admin seeded successfully: admin@finance.com / adminpassword")
+        db.close()
+    except Exception as e:
+        logger.error(f"Error seeding DB: {e}")
 
 
 @app.on_event("shutdown")
