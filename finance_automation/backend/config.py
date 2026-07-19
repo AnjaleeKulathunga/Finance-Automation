@@ -16,6 +16,11 @@ class Settings(BaseSettings):
 
     MAX_FILE_SIZE_MB: int = 50
     ALLOWED_EXTENSIONS: set = {".xlsx", ".xls"}
+    EMAIL_USER: str = ""
+    EMAIL_PASS: str = ""
+    EMAIL_HOST: str = "smtp.gmail.com"
+    EMAIL_PORT: int = 465
+    PASSWORD_RESET_OTP_EXPIRE_MINUTES: int = 10
 
     FLEXFIELD_SEGMENTS: dict = {
         "company": 0,
@@ -110,12 +115,11 @@ class Settings(BaseSettings):
     }
 
     class Config:
-        env_file = ".env"
         env_prefix = "FINANCE_"
         extra = "allow"
 
 
-settings = Settings()
+settings = Settings(_env_file=Path(__file__).resolve().parent / ".env")
 
 for directory in [
     settings.UPLOAD_DIR,

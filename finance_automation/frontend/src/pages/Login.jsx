@@ -88,9 +88,9 @@ export default function Login() {
                   />
                   Show password
                 </label>
-                <a href="#" className="text-xs font-extrabold text-[#0787d8] hover:text-[#056da8] transition-all">
+                <Link to="/forgot-password" className="text-xs font-extrabold text-[#0787d8] hover:text-[#056da8] transition-all">
                   Forgot password?
-                </a>
+                </Link>
               </div>
 
               <button

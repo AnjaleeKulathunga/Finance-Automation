@@ -60,6 +60,26 @@ class UserUpdate(BaseModel):
 class PasswordResetRequest(BaseModel):
     new_password: str = Field(..., min_length=6)
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class VerifyOTPRequest(BaseModel):
+    email: EmailStr
+    otp: str = Field(..., min_length=6, max_length=6)
+
+class ForgotPasswordReset(BaseModel):
+    email: EmailStr
+    otp: str = Field(..., min_length=6, max_length=6)
+    new_password: str = Field(..., min_length=6)
+    confirm_password: str
+
+    @field_validator("confirm_password")
+    @classmethod
+    def reset_passwords_match(cls, v: str, info):
+        if "new_password" in info.data and v != info.data["new_password"]:
+            raise ValueError("Passwords do not match")
+        return v
+
 class RoleChangeRequest(BaseModel):
     role: str
 

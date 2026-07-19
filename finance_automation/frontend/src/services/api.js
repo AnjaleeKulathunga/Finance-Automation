@@ -173,6 +173,59 @@ export async function authLogin(email, password) {
   return response.json();
 }
 
+export async function requestPasswordResetOtp(email) {
+  const response = await fetch(`${API_BASE}/auth/forgot-password/request-otp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Failed to send OTP");
+  }
+  return response.json();
+}
+
+export async function verifyPasswordResetOtp(email, otp) {
+  const response = await fetch(`${API_BASE}/auth/forgot-password/verify-otp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, otp }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Invalid OTP");
+  }
+  return response.json();
+}
+
+export async function resetForgottenPassword(email, otp, newPassword, confirmPassword) {
+  const response = await fetch(`${API_BASE}/auth/forgot-password/reset`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email,
+      otp,
+      new_password: newPassword,
+      confirm_password: confirmPassword,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Failed to reset password");
+  }
+  return response.json();
+}
+
 export async function authLogout() {
   const response = await fetch(`${API_BASE}/auth/logout`, {
     method: "POST",
