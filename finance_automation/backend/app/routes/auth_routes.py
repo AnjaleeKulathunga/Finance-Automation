@@ -46,6 +46,38 @@ def _send_password_reset_email(email: str, otp: str):
         f"This code expires in {settings.PASSWORD_RESET_OTP_EXPIRE_MINUTES} minutes.\n"
         "If you did not request this, please ignore this email."
     )
+    message.add_alternative(
+        f"""
+        <!doctype html>
+        <html>
+          <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a;">
+            <div style="max-width:520px;margin:0 auto;padding:32px 18px;">
+              <div style="background:#ffffff;border-radius:18px;padding:28px;border:1px solid #e2e8f0;">
+                <h1 style="margin:0 0 10px;font-size:24px;line-height:1.2;color:#071427;">
+                  Password Reset OTP
+                </h1>
+                <p style="margin:0 0 22px;font-size:15px;line-height:1.6;color:#475569;">
+                  Use this verification code to reset your Finance Portal password.
+                </p>
+                <div style="margin:0 0 22px;padding:22px;border-radius:16px;background:#e0f2fe;border:2px solid #38bdf8;text-align:center;">
+                  <div style="font-size:13px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:#0369a1;margin-bottom:8px;">
+                    Your OTP Code
+                  </div>
+                  <div style="font-size:44px;line-height:1;font-weight:900;letter-spacing:8px;color:#075985;">
+                    {otp}
+                  </div>
+                </div>
+                <p style="margin:0;font-size:14px;line-height:1.6;color:#64748b;">
+                  This code expires in {settings.PASSWORD_RESET_OTP_EXPIRE_MINUTES} minutes.
+                  If you did not request this, please ignore this email.
+                </p>
+              </div>
+            </div>
+          </body>
+        </html>
+        """,
+        subtype="html",
+    )
 
     email_password = settings.EMAIL_PASS.replace(" ", "")
     try:
