@@ -45,10 +45,10 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const register = async (fullName, email, password, confirmPassword) => {
+  const register = async (fullName, email, password, confirmPassword, role) => {
     setLoading(true);
     try {
-      return await authRegister(fullName, email, password, confirmPassword);
+      return await authRegister(fullName, email, password, confirmPassword, role);
     } catch (err) {
       throw err;
     } finally {

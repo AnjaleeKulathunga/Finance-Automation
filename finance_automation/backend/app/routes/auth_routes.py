@@ -25,7 +25,7 @@ async def register(user_in: UserRegister, request: Request, db: Session = Depend
     
     # Auto-approve the very first user as Admin (bootstrapping)
     is_first = db.query(User).count() == 0
-    role = "Admin" if is_first else "User"
+    role = "Admin" if is_first else user_in.role
     status_val = "Approved" if is_first else "Pending"
     
     hashed_pwd = get_password_hash(user_in.password)

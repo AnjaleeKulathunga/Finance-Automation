@@ -135,7 +135,7 @@ export async function updateFlexfields(flexfields) {
 }
 
 // AUTH SERVICES
-export async function authRegister(fullName, email, password, confirmPassword) {
+export async function authRegister(fullName, email, password, confirmPassword, role) {
   const response = await fetch(`${API_BASE}/auth/register`, {
     method: "POST",
     headers: {
@@ -146,6 +146,7 @@ export async function authRegister(fullName, email, password, confirmPassword) {
       email,
       password,
       confirm_password: confirmPassword,
+      role,
     }),
   });
 

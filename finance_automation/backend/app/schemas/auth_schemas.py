@@ -7,12 +7,20 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
     confirm_password: str
+    role: str = "User"
 
     @field_validator("confirm_password")
     @classmethod
     def passwords_match(cls, v: str, info):
         if "password" in info.data and v != info.data["password"]:
             raise ValueError("Passwords do not match")
+        return v
+
+    @field_validator("role")
+    @classmethod
+    def role_is_allowed(cls, v: str):
+        if v not in {"Admin", "User"}:
+            raise ValueError("Role must be Admin or User")
         return v
 
 class UserLogin(BaseModel):

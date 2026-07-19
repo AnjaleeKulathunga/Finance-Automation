@@ -8,6 +8,7 @@ export default function Register() {
   
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [role, setRole] = useState("User");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -25,7 +26,7 @@ export default function Register() {
     setLoading(true);
     setError(null);
     try {
-      await register(fullName, email, password, confirmPassword);
+      await register(fullName, email, password, confirmPassword, role);
       setSuccess(true);
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -117,6 +118,21 @@ export default function Register() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-extrabold text-slate-500 uppercase tracking-[0.08em]">
+                  Role
+                </label>
+                <select
+                  required
+                  className="w-full h-[46px] px-4 bg-slate-50 text-slate-900 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-sky-100 focus:border-sky-400 text-sm font-semibold transition-all"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                >
+                  <option value="User">User</option>
+                  <option value="Admin">Admin</option>
+                </select>
               </div>
 
               <div className="space-y-1.5">
