@@ -3,8 +3,13 @@ import time
 import uuid
 import shutil
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends, Request
 from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+from app.database.connection import get_db
+from app.auth.jwt_handler import get_current_active_user
+from app.models.user_and_log import User
+from app.services.audit_logger import log_audit
 from utils.logger import logger
 from config import settings
 from models import UploadedFiles, ReportResponse
@@ -32,12 +37,15 @@ uploaded_files_store: dict = {}
 
 @router.post("/upload")
 async def upload_files(
+    request: Request,
     tb_current: UploadFile = File(...),
     tb_previous: UploadFile = File(...),
     budget: UploadFile = File(...),
     mapping: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
-    logger.info("Receiving file upload request")
+    logger.info(f"User {current_user.email} is uploading files")
 
     session_id = str(uuid.uuid4())[:8]
     session_dir = settings.UPLOAD_DIR / session_id
@@ -95,6 +103,16 @@ async def upload_files(
 
     uploaded_files_store[session_id] = file_paths
 
+    log_audit(
+        db=db,
+        action="File Upload",
+        module="Finance",
+        description=f"Uploaded files for processing. Session ID: {session_id}, Files: TB Current={tb_current.filename}, TB Previous={tb_previous.filename}",
+        user_id=current_user.id,
+        user_name=current_user.full_name,
+        request=request
+    )
+
     return {
         "status": "success",
         "session_id": session_id,
@@ -109,7 +127,12 @@ async def upload_files(
 
 
 @router.post("/generate")
-async def generate_report(session_id: str = ""):
+async def generate_report(
+    request: Request,
+    session_id: str = "",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
     if not session_id or session_id not in uploaded_files_store:
         raise HTTPException(
             status_code=400, detail="Invalid or missing session_id. Upload files first."
@@ -191,6 +214,16 @@ async def generate_report(session_id: str = ""):
 
         logger.info(f"Report generated successfully in {elapsed}s: {filename}")
 
+        log_audit(
+            db=db,
+            action="Report Generation",
+            module="Finance",
+            description=f"Generated PowerPoint report. Filename: {filename}, Month: {report_month}, Year: {report_year}, Mapped: {mapped_count}, Unmapped: {unmapped_count}",
+            user_id=current_user.id,
+            user_name=current_user.full_name,
+            request=request
+        )
+
         return ReportResponse(
             status="success",
             filename=filename,
@@ -213,10 +246,25 @@ async def generate_report(session_id: str = ""):
 
 
 @router.get("/download/{filename}")
-async def download_report(filename: str):
+async def download_report(
+    filename: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
     file_path = settings.OUTPUT_DIR / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Report file not found.")
+
+    log_audit(
+        db=db,
+        action="Download Report",
+        module="Finance",
+        description=f"Downloaded report PowerPoint file: {filename}",
+        user_id=current_user.id,
+        user_name=current_user.full_name,
+        request=request
+    )
 
     return FileResponse(
         path=str(file_path),
@@ -226,7 +274,12 @@ async def download_report(filename: str):
 
 
 @router.post("/generate-unmapped")
-async def generate_unmapped_report(session_id: str = Query("")):
+async def generate_unmapped_report(
+    request: Request,
+    session_id: str = Query(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
     if not session_id or session_id not in uploaded_files_store:
         raise HTTPException(
             status_code=400,
@@ -824,6 +877,16 @@ async def generate_unmapped_report(session_id: str = Query("")):
             f"Unmapped report generated: {output_filename} (CY: {cy_count}, PY: {py_count})"
         )
 
+        log_audit(
+            db=db,
+            action="Unmapped Report Generation",
+            module="Finance",
+            description=f"Generated unmapped rows Excel report. Filename: {output_filename}, Month: {report_month}, Year: {report_year}, CY: {cy_count}, PY: {py_count}",
+            user_id=current_user.id,
+            user_name=current_user.full_name,
+            request=request
+        )
+
         return {
             "status": "success",
             "filename": output_filename,
@@ -841,10 +904,25 @@ async def generate_unmapped_report(session_id: str = Query("")):
 
 
 @router.get("/download-unmapped/{filename}")
-async def download_unmapped_report(filename: str):
+async def download_unmapped_report(
+    filename: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
     file_path = settings.OUTPUT_DIR / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Unmapped report file not found.")
+
+    log_audit(
+        db=db,
+        action="Download Unmapped Rows",
+        module="Finance",
+        description=f"Downloaded unmapped rows Excel report: {filename}",
+        user_id=current_user.id,
+        user_name=current_user.full_name,
+        request=request
+    )
 
     return FileResponse(
         path=str(file_path),
