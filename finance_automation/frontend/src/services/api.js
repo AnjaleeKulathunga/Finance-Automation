@@ -135,7 +135,7 @@ export async function updateFlexfields(flexfields) {
 }
 
 // AUTH SERVICES
-export async function authRegister(fullName, email, password, confirmPassword) {
+export async function authRegister(fullName, email, password, confirmPassword, role) {
   const response = await fetch(`${API_BASE}/auth/register`, {
     method: "POST",
     headers: {
@@ -146,6 +146,7 @@ export async function authRegister(fullName, email, password, confirmPassword) {
       email,
       password,
       confirm_password: confirmPassword,
+      role,
     }),
   });
 
@@ -168,6 +169,59 @@ export async function authLogin(email, password) {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || "Login failed");
+  }
+  return response.json();
+}
+
+export async function requestPasswordResetOtp(email) {
+  const response = await fetch(`${API_BASE}/auth/forgot-password/request-otp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Failed to send OTP");
+  }
+  return response.json();
+}
+
+export async function verifyPasswordResetOtp(email, otp) {
+  const response = await fetch(`${API_BASE}/auth/forgot-password/verify-otp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, otp }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Invalid OTP");
+  }
+  return response.json();
+}
+
+export async function resetForgottenPassword(email, otp, newPassword, confirmPassword) {
+  const response = await fetch(`${API_BASE}/auth/forgot-password/reset`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email,
+      otp,
+      new_password: newPassword,
+      confirm_password: confirmPassword,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Failed to reset password");
   }
   return response.json();
 }
