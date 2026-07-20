@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.auth-shell {
+  background:
+    radial-gradient(circle at 10% 12%, rgba(14, 165, 233, 0.18), transparent 30%),
+    radial-gradient(circle at 90% 16%, rgba(16, 185, 129, 0.2), transparent 28%),
+    linear-gradient(135deg, #eef9ff 0%, #f8fbff 48%, #edfdf5 100%);
+}
+
+.auth-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(42, 91, 124, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(42, 91, 124, 0.09) 1px, transparent 1px);
+  background-size: 54px 54px;
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0.92), rgba(0, 0, 0, 0.24));
+  pointer-events: none;
+}
+
+.auth-shell::after {
+  content: "";
+  position: absolute;
+  inset: auto -8rem -10rem auto;
+  width: min(58vw, 760px);
+  height: min(58vw, 760px);
+  background:
+    linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(16, 185, 129, 0.24)),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.42) 0 12px, transparent 12px 28px);
+  border-radius: 48px;
+  transform: rotate(-14deg);
+  pointer-events: none;
+}
+
+@media (max-width: 1023px) {
+  .auth-shell::before {
+    mask-image: none;
+  }
+}

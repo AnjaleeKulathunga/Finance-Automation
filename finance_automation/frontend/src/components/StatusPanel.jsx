@@ -25,13 +25,44 @@ const stepLabels = [
 
 export default function StatusPanel({ activeStep, uploadResult, reportResult, error }) {
   return (
-    <Paper elevation={2} sx={{ p: 3, mt: 3 }}>
-      <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: "#0B3041" }}>
-        Processing Status
-      </Typography>
+    <Paper
+      elevation={0}
+      sx={{
+        p: { xs: 2.5, md: 3 },
+        mt: 3,
+        borderRadius: 2,
+        border: "1px solid #dce5ee",
+        boxShadow: "0 14px 34px rgba(15, 23, 42, 0.06)",
+        backgroundColor: "#ffffff",
+      }}
+    >
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, mb: 2 }}>
+        <Box>
+          <Typography variant="h6" sx={{ fontWeight: 900, color: "#082f49" }}>
+            Processing Status
+          </Typography>
+          <Typography variant="body2" sx={{ color: "#64748b", fontWeight: 600 }}>
+            Report workflow progress
+          </Typography>
+        </Box>
+        <Chip
+          label={reportResult ? "Completed" : error ? "Attention" : activeStep > 0 ? "In progress" : "Not started"}
+          color={reportResult ? "success" : error ? "error" : "default"}
+          sx={{ fontWeight: 800 }}
+        />
+      </Box>
       <Divider sx={{ mb: 2 }} />
 
-      <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
+      <Stepper
+        activeStep={activeStep}
+        alternativeLabel
+        sx={{
+          mb: 3,
+          "& .MuiStepLabel-label": { fontWeight: 700, color: "#64748b" },
+          "& .Mui-active .MuiStepLabel-label": { color: "#0B3041", fontWeight: 900 },
+          "& .Mui-completed .MuiStepLabel-label": { color: "#166534", fontWeight: 900 },
+        }}
+      >
         {stepLabels.map((label) => (
           <Step key={label}>
             <StepLabel>{label}</StepLabel>
@@ -47,7 +78,7 @@ export default function StatusPanel({ activeStep, uploadResult, reportResult, er
 
       {uploadResult && (
         <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle2" gutterBottom>
+          <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 900, color: "#334155" }}>
             Uploaded Files:
           </Typography>
           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
@@ -59,6 +90,7 @@ export default function StatusPanel({ activeStep, uploadResult, reportResult, er
                 color="success"
                 variant="outlined"
                 size="small"
+                sx={{ fontWeight: 700 }}
               />
             ))}
           </Box>
