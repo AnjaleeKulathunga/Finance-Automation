@@ -615,13 +615,12 @@ export default function AdminLayout() {
                       <th className="px-6 py-3 text-left">Action</th>
                       <th className="px-6 py-3 text-left">Module</th>
                       <th className="px-6 py-3 text-left">Description</th>
-                      <th className="px-6 py-3 text-left">IP Address</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 text-gray-600 bg-white">
                     {auditResponse.logs.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="text-center py-8 text-gray-400">
+                        <td colSpan="5" className="text-center py-8 text-gray-400">
                           No audit trace logs matched standard queries.
                         </td>
                       </tr>
@@ -647,7 +646,6 @@ export default function AdminLayout() {
                           <td className="px-6 py-4 text-xs max-w-xs truncate" title={log.description}>
                             {log.description}
                           </td>
-                          <td className="px-6 py-4 text-xs font-mono">{log.ip_address || "Localhost"}</td>
                         </tr>
                       ))
                     )}

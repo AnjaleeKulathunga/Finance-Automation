@@ -201,45 +201,65 @@ export default function UserDashboard() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
 
-      {/* Top Navigation Panel */}
-      <div className="bg-[#061826] text-white py-3.5 px-8 flex justify-between items-center shadow-lg font-sans border-b border-white/5">
-        <div className="flex items-center space-x-4">
-          <img src="/logo.png" alt="SLT Mobitel Logo" className="h-10 object-contain" />
-          <span className="h-6 w-[1px] bg-white/10 hidden sm:block"></span>
-          <span className="font-bold text-lg tracking-wide hidden sm:inline-block">Finance Revenue Automation</span>
-        </div>
-        <div className="flex items-center space-x-6">
-          <div className="text-right">
-            <span className="block text-sm font-semibold">{currentUser?.full_name}</span>
-            <span className="block text-xs text-green-400">Status: {currentUser?.status}</span>
+      <div className="min-h-screen bg-[#f4f7fb]">
+        <div className="bg-[#061826] text-white px-6 lg:px-10 py-4 flex justify-between items-center shadow-[0_12px_30px_rgba(6,24,38,0.18)] font-sans border-b border-white/10">
+          <div className="flex items-center gap-5 min-w-0">
+            <img src="/logo.png" alt="SLT Mobitel Logo" className="h-10 object-contain shrink-0" />
+            <span className="h-8 w-[1px] bg-white/15 hidden sm:block" />
+            <div className="min-w-0">
+              <span className="block font-extrabold text-lg tracking-normal truncate">Finance Revenue Automation</span>
+              <span className="hidden sm:block text-xs font-semibold text-slate-400">Revenue reporting workspace</span>
+            </div>
           </div>
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:block text-right">
+              <span className="block text-sm font-extrabold">{currentUser?.full_name}</span>
+              <span className="block text-xs font-semibold text-emerald-400">Status: {currentUser?.status}</span>
+            </div>
+            <Chip
+              label={currentUser?.role || "User"}
+              size="small"
+              sx={{
+                display: { xs: "none", md: "inline-flex" },
+                color: "#bbf7d0",
+                borderColor: "rgba(187,247,208,0.35)",
+                backgroundColor: "rgba(22,163,74,0.12)",
+                fontWeight: 800,
+              }}
+              variant="outlined"
+            />
           <button
             onClick={handleLogout}
-            className="flex items-center space-x-1.5 px-4 py-2 bg-[#E1251B] hover:bg-[#C11812] text-white rounded-xl text-sm font-bold transition-all shadow-md active:scale-95"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-[#E1251B] hover:bg-[#C11812] text-white rounded-lg text-sm font-extrabold transition-all shadow-md active:scale-95"
           >
             <LogoutIcon fontSize="small" />
             <span>Sign Out</span>
           </button>
+          </div>
         </div>
-      </div>
 
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Box sx={{ mb: 4 }} className="font-sans">
-          <Typography variant="h4" sx={{ fontWeight: 800, color: "#0B3041" }}>
-            Welcome back, {currentUser?.full_name}!
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Generate PowerPoint reports from trial balances in seconds.
-          </Typography>
-        </Box>
-
-        <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
-          <Typography variant="h5" gutterBottom sx={{ fontWeight: 700, color: "#0B3041" }}>
-            Upload Required Files
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Upload your Trial Balances. System mapping and budget templates are preconfigured by administrators, or you can optionally upload custom versions to override them.
-          </Typography>
+        <Container maxWidth="xl" sx={{ py: { xs: 3, md: 5 } }}>
+          <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 2, border: "1px solid #dce5ee", boxShadow: "0 18px 42px rgba(15, 23, 42, 0.08)" }}>
+            <Box sx={{ mb: 3, display: "flex", alignItems: { xs: "flex-start", md: "center" }, justifyContent: "space-between", gap: 2, flexDirection: { xs: "column", md: "row" } }}>
+              <Box>
+                <Typography variant="h5" sx={{ fontWeight: 900, color: "#082f49" }}>
+                  Source Workbooks
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.75, color: "#64748b", fontWeight: 600 }}>
+                  Current and previous trial balances are required. Admin defaults can cover budget and mapping.
+                </Typography>
+              </Box>
+              <Chip
+                label={allFilesUploaded ? "Generation enabled" : "Waiting for files"}
+                sx={{
+                  height: 34,
+                  borderRadius: 1.5,
+                  fontWeight: 900,
+                  color: allFilesUploaded ? "#166534" : "#475569",
+                  backgroundColor: allFilesUploaded ? "#dcfce7" : "#f1f5f9",
+                }}
+              />
+            </Box>
 
           <Grid container spacing={3}>
             {FILE_CONFIGS.map((config) => {
@@ -254,18 +274,22 @@ export default function UserDashboard() {
                     variant="outlined"
                     sx={{
                       height: "100%",
-                      borderColor: isUploaded ? config.color : isDefaultActive ? "#7AB648" : "#E0E0E0",
-                      borderWidth: isUploaded || isDefaultActive ? 2 : 1,
-                      backgroundColor: !isUploaded && isDefaultActive ? "#F9FBF7" : "inherit",
+                      borderColor: isUploaded ? config.color : isDefaultActive ? "#86C35C" : "#DCE5EE",
+                      borderWidth: 1,
+                      borderRadius: 2,
+                      backgroundColor: !isUploaded && isDefaultActive ? "#F8FCF6" : "#FFFFFF",
                       transition: "all 0.2s",
-                      "&:hover": { borderColor: config.color },
+                      boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
+                      "&:hover": { borderColor: config.color, boxShadow: "0 14px 30px rgba(15, 23, 42, 0.08)" },
                     }}
                   >
-                    <CardContent>
+                    <CardContent sx={{ p: 3 }}>
                       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
                         <Box sx={{ display: "flex", alignItems: "center" }}>
-                          <FileIcon sx={{ color: config.color, mr: 1 }} />
-                          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                          <Box sx={{ width: 34, height: 34, borderRadius: 1.5, display: "grid", placeItems: "center", backgroundColor: `${config.color}14`, mr: 1.5 }}>
+                            <FileIcon sx={{ color: config.color, fontSize: 21 }} />
+                          </Box>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1f2937" }}>
                             {config.label}
                           </Typography>
                         </Box>
@@ -275,14 +299,14 @@ export default function UserDashboard() {
                             color="success"
                             size="small"
                             variant="outlined"
-                            sx={{ height: 20, fontSize: "0.7rem", fontWeight: 600 }}
+                            sx={{ height: 22, fontSize: "0.68rem", fontWeight: 800 }}
                           />
                         )}
                       </Box>
 
                       {isUploaded ? (
                         <Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 700, wordBreak: "break-word" }}>
                             {files[config.key].name}
                           </Typography>
                           <Box sx={{ display: "flex", gap: 1 }}>
@@ -290,7 +314,7 @@ export default function UserDashboard() {
                               size="small"
                               component="label"
                               variant="outlined"
-                              sx={{ textTransform: "none" }}
+                              sx={{ textTransform: "none", fontWeight: 800, borderRadius: 1.5 }}
                             >
                               Replace Custom
                               <input
@@ -318,7 +342,7 @@ export default function UserDashboard() {
                             size="small"
                             component="label"
                             variant="outlined"
-                            sx={{ textTransform: "none", color: config.color, borderColor: config.color }}
+                            sx={{ textTransform: "none", color: config.color, borderColor: config.color, fontWeight: 800, borderRadius: 1.5 }}
                           >
                             Upload Custom Override
                             <input
@@ -337,9 +361,11 @@ export default function UserDashboard() {
                           startIcon={<UploadIcon />}
                           sx={{
                             mt: 1,
-                            py: 2,
+                            py: 2.2,
                             borderStyle: "dashed",
                             textTransform: "none",
+                            fontWeight: 900,
+                            borderRadius: 1.5,
                             color: config.color,
                             borderColor: config.color,
                             "&:hover": {
@@ -364,9 +390,9 @@ export default function UserDashboard() {
             })}
           </Grid>
 
-          {loading && <LinearProgress sx={{ mt: 3 }} />}
+          {loading && <LinearProgress sx={{ mt: 3, height: 7, borderRadius: 999 }} />}
 
-          <Box sx={{ mt: 3, display: "flex", gap: 2 }}>
+          <Box sx={{ mt: 3, display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
             <Button
               variant="contained"
               size="large"
@@ -376,7 +402,8 @@ export default function UserDashboard() {
               sx={{
                 backgroundColor: "#0B3041",
                 textTransform: "none",
-                fontWeight: 600,
+                fontWeight: 900,
+                borderRadius: 1.5,
                 px: 4,
                 "&:hover": { backgroundColor: "#143D52" },
               }}
@@ -391,10 +418,11 @@ export default function UserDashboard() {
                 startIcon={<DownloadIcon />}
                 onClick={handleDownload}
                 sx={{
-                  backgroundColor: "#7AB648",
-                  textTransform: "none",
-                  fontWeight: 600,
-                  px: 4,
+                backgroundColor: "#7AB648",
+                textTransform: "none",
+                fontWeight: 900,
+                borderRadius: 1.5,
+                px: 4,
                   "&:hover": { backgroundColor: "#6AA038" },
                 }}
               >
@@ -410,10 +438,11 @@ export default function UserDashboard() {
                 onClick={handleUnmappedDownload}
                 disabled={unmappedLoading}
                 sx={{
-                  backgroundColor: "#E8A838",
-                  textTransform: "none",
-                  fontWeight: 600,
-                  px: 4,
+                backgroundColor: "#E8A838",
+                textTransform: "none",
+                fontWeight: 900,
+                borderRadius: 1.5,
+                px: 4,
                   "&:hover": { backgroundColor: "#D09830" },
                 }}
               >
@@ -427,7 +456,7 @@ export default function UserDashboard() {
                 size="large"
                 onClick={handleReset}
                 disabled={loading}
-                sx={{ textTransform: "none" }}
+                sx={{ textTransform: "none", fontWeight: 900, borderRadius: 1.5 }}
               >
                 Reset
               </Button>
@@ -442,7 +471,7 @@ export default function UserDashboard() {
           error={error}
         />
 
-        <Paper elevation={1} sx={{ p: 2, mt: 3, backgroundColor: "#F0F4F8" }}>
+        <Paper elevation={0} sx={{ p: 2.5, mt: 3, backgroundColor: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 2 }}>
           <Typography variant="caption" color="text.secondary">
             <strong>Required files:</strong> Current Year Trial Balance and Previous Year Trial Balance are always required.
             If defaults are not set by the Admin, you must also provide the Revenue Budget Workbook and Revenue Mapping Workbook.
@@ -450,6 +479,7 @@ export default function UserDashboard() {
           </Typography>
         </Paper>
       </Container>
+      </div>
     </ThemeProvider>
   );
 }

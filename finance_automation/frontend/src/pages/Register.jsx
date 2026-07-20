@@ -8,6 +8,7 @@ export default function Register() {
   
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [role, setRole] = useState("User");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -25,7 +26,7 @@ export default function Register() {
     setLoading(true);
     setError(null);
     try {
-      await register(fullName, email, password, confirmPassword);
+      await register(fullName, email, password, confirmPassword, role);
       setSuccess(true);
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -36,40 +37,34 @@ export default function Register() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#061826] relative overflow-hidden px-4 font-sans text-white">
-        {/* Background Radial Glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="auth-shell min-h-screen relative overflow-hidden px-4 py-8 font-sans text-slate-900">
+        <div className="relative z-10 min-h-[calc(100vh-4rem)] flex items-center justify-center">
+          <div className="w-full max-w-[420px] bg-white rounded-[22px] shadow-[0_24px_70px_rgba(77,112,148,0.18)] overflow-hidden text-center">
+            <div className="px-6 sm:px-8 pt-8 pb-7 border-b border-slate-200">
+              <div className="mx-auto flex items-center justify-center h-14 w-14 rounded-full bg-emerald-50 border border-emerald-100 mb-5">
+                <svg className="h-8 w-8 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-[28px] sm:text-[32px] leading-tight font-extrabold text-[#070b1f] tracking-normal">
+                Request Sent
+              </h2>
+              <p className="mt-3 text-base font-semibold text-slate-500">
+                Finance Portal Access
+              </p>
+            </div>
 
-        {/* Logo container */}
-        <div className="mb-8 z-10">
-          <img 
-            src="/logo.png" 
-            alt="SLT Mobitel Logo" 
-            className="h-20 object-contain drop-shadow-[0_2px_8px_rgba(0,141,255,0.2)]" 
-          />
-        </div>
-
-        <div className="max-w-md w-full z-10 bg-[#0B2135]/65 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-2xl text-center">
-          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-500/10 border border-green-500/20 mb-6">
-            <svg className="h-10 w-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-extrabold text-white">Registration Received!</h2>
-          <p className="mt-4 text-sm text-gray-300">
-            Thank you, <span className="font-semibold text-blue-400">{fullName}</span>. Your account registration is complete and is currently 
-            <span className="font-semibold text-orange-400"> pending administrator approval</span>.
-          </p>
-          <p className="mt-2 text-xs text-gray-400">
-            You will be able to log in once an administrator approves your account status.
-          </p>
-          <div className="mt-8">
-            <Link
-              to="/login"
-              className="inline-flex items-center px-6 py-2.5 border border-transparent text-sm font-semibold rounded-xl text-white bg-blue-500 hover:bg-blue-600 shadow-md transition-all"
-            >
-              Return to Login
-            </Link>
+            <div className="px-7 sm:px-10 py-8">
+              <p className="text-base leading-7 font-semibold text-slate-500">
+                Thank you, <span className="text-[#0787d8]">{fullName}</span>. Your account request is pending administrator approval.
+              </p>
+              <Link
+                to="/login"
+                className="mt-8 inline-flex h-[50px] px-7 items-center justify-center rounded-2xl bg-gradient-to-r from-sky-500 via-blue-600 to-emerald-500 text-white text-sm font-extrabold shadow-[0_12px_22px_rgba(14,126,216,0.24)] transition-all hover:brightness-105"
+              >
+                Return to Login
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -77,187 +72,126 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#061826] relative overflow-hidden px-4 py-12 font-sans text-white">
-      {/* Background Radial Glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
-
-      {/* Logo container */}
-      <div className="mb-8 z-10">
-        <img 
-          src="/logo.png" 
-          alt="SLT Mobitel Logo" 
-          className="h-20 object-contain drop-shadow-[0_2px_8px_rgba(0,141,255,0.2)]" 
-        />
-      </div>
-
-      {/* Main card */}
-      <div className="max-w-md w-full z-10 bg-[#0B2135]/65 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl p-8 flex flex-col">
-        {/* Sign In / Register Tabs Toggle */}
-        <div className="flex bg-[#051624] p-1 rounded-2xl mb-8">
-          <Link 
-            to="/login" 
-            className="flex-1 text-center py-2.5 text-sm font-semibold rounded-xl text-gray-400 hover:text-white transition-all"
-          >
-            Sign In
-          </Link>
-          <button className="flex-1 text-center py-2.5 text-sm font-semibold rounded-xl bg-blue-600 text-white shadow-md transition-all">
-            Register
-          </button>
-        </div>
-
-        {error && (
-          <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start space-x-3 text-red-200">
-            <svg className="h-5 w-5 text-red-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <p className="text-sm">{error}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Full Name field */}
-          <div className="space-y-1">
-            <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider">
-              Full Name *
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </span>
-              <input
-                type="text"
-                required
-                className="w-full pl-11 pr-4 py-2.5 bg-[#e8f0fe] text-gray-900 border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium transition-all"
-                placeholder="John Doe"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-              />
-            </div>
+    <div className="auth-shell min-h-screen relative overflow-hidden px-4 py-8 font-sans text-slate-900">
+      <div className="relative z-10 min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <div className="w-full max-w-[420px] bg-white rounded-[22px] shadow-[0_24px_70px_rgba(77,112,148,0.18)] overflow-hidden">
+          <div className="px-6 sm:px-8 pt-8 pb-7 text-center border-b border-slate-200">
+            <h1 className="text-[26px] sm:text-[30px] leading-tight font-extrabold text-[#070b1f] tracking-normal">
+              Request Access
+            </h1>
+            <p className="mt-2.5 text-sm font-semibold text-slate-500">
+              Finance Portal Registration
+            </p>
           </div>
 
-          {/* Email field */}
-          <div className="space-y-1">
-            <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider">
-              Email Address *
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.206" />
-                </svg>
-              </span>
-              <input
-                type="email"
-                required
-                className="w-full pl-11 pr-4 py-2.5 bg-[#e8f0fe] text-gray-900 border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium transition-all"
-                placeholder="john@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Password field */}
-          <div className="space-y-1">
-            <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider">
-              Password *
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </span>
-              <input
-                type={showPassword ? "text" : "password"}
-                required
-                className="w-full pl-11 pr-11 py-2.5 bg-[#e8f0fe] text-gray-900 border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium transition-all"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Confirm Password field */}
-          <div className="space-y-1">
-            <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider">
-              Confirm Password *
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </span>
-              <input
-                type={showPassword ? "text" : "password"}
-                required
-                className="w-full pl-11 pr-11 py-2.5 bg-[#e8f0fe] text-gray-900 border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium transition-all"
-                placeholder="••••••••"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Show password checkbox */}
-          <div className="flex items-center space-x-2 pt-1 pb-2">
-            <input 
-              type="checkbox" 
-              id="show-pass"
-              checked={showPassword}
-              onChange={() => setShowPassword(!showPassword)}
-              className="rounded bg-[#051624] border-white/10 text-blue-500 focus:ring-blue-500"
-            />
-            <label htmlFor="show-pass" className="text-xs text-gray-300 cursor-pointer select-none">
-              Show Passwords
-            </label>
-          </div>
-
-          {/* Submit button */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
-          >
-            {loading ? (
-              <span className="flex items-center">
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                Registering...
-              </span>
-            ) : (
-              <>
-                <span>Register</span>
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </>
+          <div className="px-6 sm:px-8 py-7">
+            {error && (
+              <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                {error}
+              </div>
             )}
-          </button>
-        </form>
 
-        {/* Footer Link */}
-        <div className="text-center mt-6">
-          <p className="text-sm text-gray-400">
-            Already have an account?{" "}
-            <Link to="/login" className="text-blue-400 hover:text-blue-300 font-semibold hover:underline transition-all">
-              Sign In
-            </Link>
-          </p>
+            <form onSubmit={handleSubmit} className="space-y-3.5">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-extrabold text-slate-500 uppercase tracking-[0.08em]">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  className="w-full h-[46px] px-4 bg-slate-50 text-slate-900 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-sky-100 focus:border-sky-400 text-sm font-semibold placeholder:text-slate-400 transition-all"
+                  placeholder="John Doe"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-extrabold text-slate-500 uppercase tracking-[0.08em]">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  required
+                  className="w-full h-[46px] px-4 bg-slate-50 text-slate-900 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-sky-100 focus:border-sky-400 text-sm font-semibold placeholder:text-slate-400 transition-all"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-extrabold text-slate-500 uppercase tracking-[0.08em]">
+                  Role
+                </label>
+                <select
+                  required
+                  className="w-full h-[46px] px-4 bg-slate-50 text-slate-900 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-sky-100 focus:border-sky-400 text-sm font-semibold transition-all"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                >
+                  <option value="User">User</option>
+                  <option value="Admin">Admin</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-extrabold text-slate-500 uppercase tracking-[0.08em]">
+                  Password
+                </label>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  className="w-full h-[46px] px-4 bg-slate-50 text-slate-900 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-sky-100 focus:border-sky-400 text-sm font-semibold placeholder:text-slate-400 transition-all"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-extrabold text-slate-500 uppercase tracking-[0.08em]">
+                  Confirm Password
+                </label>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  className="w-full h-[46px] px-4 bg-slate-50 text-slate-900 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-sky-100 focus:border-sky-400 text-sm font-semibold placeholder:text-slate-400 transition-all"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showPassword}
+                  onChange={() => setShowPassword(!showPassword)}
+                  className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                />
+                Show passwords
+              </label>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full h-[50px] rounded-xl bg-gradient-to-r from-sky-500 via-blue-600 to-emerald-500 text-white text-sm font-extrabold shadow-[0_12px_22px_rgba(14,126,216,0.24)] transition-all hover:brightness-105 active:scale-[0.99] disabled:opacity-60"
+              >
+                {loading ? "Requesting..." : "Request Access"}
+              </button>
+            </form>
+
+            <div className="mt-6 pt-5 border-t border-slate-200 text-center">
+              <p className="text-xs font-semibold text-slate-500">
+                Already have an account?{" "}
+                <Link to="/login" className="text-[#0787d8] font-extrabold hover:text-[#056da8] transition-all">
+                  Sign In
+                </Link>
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
-
-      {/* Terms of Use Footer */}
-      <div className="mt-8 z-10 text-center text-xs text-gray-500">
-        By registering you agree to our{" "}
-        <a href="#" className="hover:text-gray-300 hover:underline">Privacy Policy</a> and{" "}
-        <a href="#" className="hover:text-gray-300 hover:underline">Terms of Use</a>
       </div>
     </div>
   );
