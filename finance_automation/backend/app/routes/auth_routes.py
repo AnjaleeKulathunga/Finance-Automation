@@ -9,6 +9,7 @@ from config import settings
 from app.database.connection import get_db
 from app.models.user_and_log import PasswordResetOTP, User
 from app.schemas.auth_schemas import (
+    AzureLoginRequest,
     ForgotPasswordRequest,
     ForgotPasswordReset,
     UserRegister,
@@ -27,14 +28,16 @@ from app.services.audit_logger import log_audit
 
 auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+
 def _generate_otp() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
+
 
 def _send_password_reset_email(email: str, otp: str):
     if not settings.EMAIL_USER or not settings.EMAIL_PASS:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Password reset email is not configured"
+            detail="Password reset email is not configured",
         )
 
     message = EmailMessage()
@@ -87,8 +90,9 @@ def _send_password_reset_email(email: str, otp: str):
     except smtplib.SMTPException:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to send password reset email"
+            detail="Failed to send password reset email",
         )
+
 
 def _get_valid_reset_otp(db: Session, email: str, otp: str) -> PasswordResetOTP:
     reset_otp = (
@@ -103,35 +107,35 @@ def _get_valid_reset_otp(db: Session, email: str, otp: str) -> PasswordResetOTP:
     now = datetime.datetime.utcnow()
     if not reset_otp or reset_otp.expires_at < now or reset_otp.attempts >= 5:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired OTP"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP"
         )
 
     if not verify_password(otp, reset_otp.otp_hash):
         reset_otp.attempts += 1
         db.commit()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired OTP"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP"
         )
 
     return reset_otp
 
+
 @auth_router.post("/register", response_model=UserResponse)
-async def register(user_in: UserRegister, request: Request, db: Session = Depends(get_db)):
+async def register(
+    user_in: UserRegister, request: Request, db: Session = Depends(get_db)
+):
     # Check if user exists
     existing_user = db.query(User).filter(User.email == user_in.email).first()
     if existing_user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
         )
-    
+
     # Auto-approve the very first user as Admin (bootstrapping)
     is_first = db.query(User).count() == 0
     role = "Admin" if is_first else user_in.role
     status_val = "Approved" if is_first else "Pending"
-    
+
     hashed_pwd = get_password_hash(user_in.password)
     new_user = User(
         full_name=user_in.full_name,
@@ -139,13 +143,13 @@ async def register(user_in: UserRegister, request: Request, db: Session = Depend
         password_hash=hashed_pwd,
         role=role,
         status=status_val,
-        is_active=True
+        is_active=True,
     )
-    
+
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    
+
     log_audit(
         db=db,
         action="Registration",
@@ -153,20 +157,22 @@ async def register(user_in: UserRegister, request: Request, db: Session = Depend
         description=f"User registered. Name: {new_user.full_name}, Email: {new_user.email}, Role: {new_user.role}, Status: {new_user.status}",
         user_id=new_user.id,
         user_name=new_user.full_name,
-        request=request
+        request=request,
     )
-    
+
     return new_user
+
 
 @auth_router.post("/forgot-password/request-otp")
 async def request_password_reset_otp(
-    reset_in: ForgotPasswordRequest,
-    request: Request,
-    db: Session = Depends(get_db)
+    reset_in: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)
 ):
     user = db.query(User).filter(User.email == reset_in.email).first()
     if not user:
-        return {"status": "success", "message": "If the email is registered, an OTP has been sent."}
+        return {
+            "status": "success",
+            "message": "If the email is registered, an OTP has been sent.",
+        }
 
     db.query(PasswordResetOTP).filter(
         PasswordResetOTP.user_id == user.id,
@@ -178,7 +184,8 @@ async def request_password_reset_otp(
         user_id=user.id,
         email=user.email,
         otp_hash=get_password_hash(otp),
-        expires_at=datetime.datetime.utcnow() + datetime.timedelta(minutes=settings.PASSWORD_RESET_OTP_EXPIRE_MINUTES),
+        expires_at=datetime.datetime.utcnow()
+        + datetime.timedelta(minutes=settings.PASSWORD_RESET_OTP_EXPIRE_MINUTES),
     )
     db.add(reset_otp)
     db.commit()
@@ -192,29 +199,33 @@ async def request_password_reset_otp(
         description=f"Password reset OTP requested for email: {user.email}",
         user_id=user.id,
         user_name=user.full_name,
-        request=request
+        request=request,
     )
 
-    return {"status": "success", "message": "If the email is registered, an OTP has been sent."}
+    return {
+        "status": "success",
+        "message": "If the email is registered, an OTP has been sent.",
+    }
+
 
 @auth_router.post("/forgot-password/verify-otp")
 async def verify_password_reset_otp(
-    verify_in: VerifyOTPRequest,
-    db: Session = Depends(get_db)
+    verify_in: VerifyOTPRequest, db: Session = Depends(get_db)
 ):
     _get_valid_reset_otp(db, verify_in.email, verify_in.otp)
     return {"status": "success", "message": "OTP verified successfully."}
 
+
 @auth_router.post("/forgot-password/reset")
 async def reset_forgotten_password(
-    reset_in: ForgotPasswordReset,
-    request: Request,
-    db: Session = Depends(get_db)
+    reset_in: ForgotPasswordReset, request: Request, db: Session = Depends(get_db)
 ):
     reset_otp = _get_valid_reset_otp(db, reset_in.email, reset_in.otp)
     user = db.query(User).filter(User.id == reset_otp.user_id).first()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
 
     user.password_hash = get_password_hash(reset_in.new_password)
     reset_otp.is_used = True
@@ -228,15 +239,18 @@ async def reset_forgotten_password(
         description=f"Password reset completed for email: {user.email}",
         user_id=user.id,
         user_name=user.full_name,
-        request=request
+        request=request,
     )
 
     return {"status": "success", "message": "Password reset successfully."}
 
+
 @auth_router.post("/login", response_model=Token)
-async def login(credentials: UserLogin, request: Request, db: Session = Depends(get_db)):
+async def login(
+    credentials: UserLogin, request: Request, db: Session = Depends(get_db)
+):
     user = db.query(User).filter(User.email == credentials.email).first()
-    
+
     # Check existence & password
     if not user or not verify_password(credentials.password, user.password_hash):
         # Log failed login
@@ -246,14 +260,14 @@ async def login(credentials: UserLogin, request: Request, db: Session = Depends(
             module="Auth",
             description=f"Failed login attempt for email: {credentials.email}",
             user_name=credentials.email,
-            request=request
+            request=request,
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # Check approved status
     if user.status == "Pending":
         log_audit(
@@ -263,29 +277,28 @@ async def login(credentials: UserLogin, request: Request, db: Session = Depends(
             description=f"Failed login due to Pending Approval status. Email: {user.email}",
             user_id=user.id,
             user_name=user.full_name,
-            request=request
+            request=request,
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your account is pending administrator approval."
+            detail="Your account is pending administrator approval.",
         )
-        
+
     if user.status == "Rejected":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your account registration has been rejected by an administrator."
+            detail="Your account registration has been rejected by an administrator.",
         )
-        
+
     # Check active status
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user account"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user account"
         )
-        
+
     # Login success
     access_token = create_access_token(data={"sub": user.email})
-    
+
     log_audit(
         db=db,
         action="Login",
@@ -293,17 +306,101 @@ async def login(credentials: UserLogin, request: Request, db: Session = Depends(
         description=f"User logged in successfully. Email: {user.email}",
         user_id=user.id,
         user_name=user.full_name,
-        request=request
+        request=request,
     )
-    
+
+    return {"access_token": access_token, "token_type": "bearer", "user": user}
+
+
+@auth_router.post("/azure-login", response_model=Token)
+async def azure_login(
+    body: AzureLoginRequest, request: Request, db: Session = Depends(get_db)
+):
+    from app.auth.azure_handler import get_azure_user_info
+
+    azure_user = get_azure_user_info(body.id_token)
+    email = azure_user["email"]
+    name = azure_user["name"]
+
+    user = db.query(User).filter(User.email == email).first()
+
+    if not user:
+        is_first = db.query(User).count() == 0
+        user = User(
+            full_name=name,
+            email=email,
+            password_hash="",
+            auth_provider="azure_ad",
+            role="Admin" if is_first else "User",
+            status="Approved" if is_first else "Pending",
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        log_audit(
+            db=db,
+            action="Azure AD Registration",
+            module="Auth",
+            description=f"New Azure AD user registered. Name: {user.full_name}, Email: {user.email}, Role: {user.role}, Status: {user.status}",
+            user_id=user.id,
+            user_name=user.full_name,
+            request=request,
+        )
+
+    if user.status == "Pending":
+        log_audit(
+            db=db,
+            action="Failed Login",
+            module="Auth",
+            description=f"Failed login (Pending). Email: {user.email}",
+            user_id=user.id,
+            user_name=user.full_name,
+            request=request,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is pending administrator approval.",
+        )
+
+    if user.status == "Rejected":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account registration has been rejected by an administrator.",
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user account",
+        )
+
+    access_token = create_access_token(data={"sub": user.email})
+
+    log_audit(
+        db=db,
+        action="Azure AD Login",
+        module="Auth",
+        description=f"User logged in via Azure AD. Email: {user.email}",
+        user_id=user.id,
+        user_name=user.full_name,
+        request=request,
+    )
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": user
+        "user": user,
     }
 
+
 @auth_router.post("/logout")
-async def logout(request: Request, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
+async def logout(
+    request: Request,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
     log_audit(
         db=db,
         action="Logout",
@@ -311,9 +408,10 @@ async def logout(request: Request, current_user: User = Depends(get_current_acti
         description=f"User logged out. Email: {current_user.email}",
         user_id=current_user.id,
         user_name=current_user.full_name,
-        request=request
+        request=request,
     )
     return {"status": "success", "message": "Logged out successfully"}
+
 
 @auth_router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_active_user)):

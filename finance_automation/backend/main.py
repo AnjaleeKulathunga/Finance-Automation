@@ -37,16 +37,32 @@ async def startup_event():
     logger.info(f"{settings.APP_NAME} v{settings.APP_VERSION} starting up")
     logger.info(f"Upload dir: {settings.UPLOAD_DIR}")
     logger.info(f"Output dir: {settings.OUTPUT_DIR}")
-    
+
     # Initialize DB & Seed Admin
     try:
         from app.database.connection import engine, SessionLocal
         from app.models.user_and_log import Base, User
         from app.auth.jwt_handler import get_password_hash
-        
+
         logger.info("Initializing database tables...")
+
+        # Add missing columns to existing tables (idempotent migration)
+        from sqlalchemy import text
+
+        with engine.connect() as conn:
+            result = conn.execute(text("PRAGMA table_info(users)"))
+            columns = [row[1] for row in result]
+            if "auth_provider" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE users ADD COLUMN auth_provider VARCHAR DEFAULT 'local'"
+                    )
+                )
+                conn.commit()
+                logger.info("Added 'auth_provider' column to users table")
+
         Base.metadata.create_all(bind=engine)
-        
+
         db = SessionLocal()
         admin_exists = db.query(User).filter(User.role == "Admin").first()
         if not admin_exists:
@@ -57,7 +73,7 @@ async def startup_event():
                 password_hash=get_password_hash("adminpassword"),
                 role="Admin",
                 status="Approved",
-                is_active=True
+                is_active=True,
             )
             db.add(default_admin)
             db.commit()

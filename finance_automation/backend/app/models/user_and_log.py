@@ -2,23 +2,28 @@ import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
 from app.database.connection import Base
 
+
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     full_name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
-    password_hash = Column(String, nullable=False)
+    password_hash = Column(String, nullable=False, default="")
+    auth_provider = Column(String, default="local")  # "local" or "azure_ad"
     role = Column(String, default="User")  # "Admin" or "User"
     status = Column(String, default="Pending")  # "Pending", "Approved", "Rejected"
     is_active = Column(Boolean, default=True)
-    
+
     created_by = Column(Integer, nullable=True)
     approved_by = Column(Integer, nullable=True)
     approved_at = Column(DateTime, nullable=True)
-    
+
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    updated_at = Column(
+        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
+    )
+
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
@@ -32,6 +37,7 @@ class AuditLog(Base):
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
 
 class PasswordResetOTP(Base):
     __tablename__ = "password_reset_otps"

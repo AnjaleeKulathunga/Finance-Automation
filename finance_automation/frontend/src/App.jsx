@@ -18,7 +18,7 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
-          
+
           <Route
             path="/admin"
             element={
@@ -27,7 +27,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/dashboard"
             element={

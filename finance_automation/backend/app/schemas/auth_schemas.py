@@ -2,6 +2,7 @@ import datetime
 from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+
 class UserRegister(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=50)
     email: EmailStr
@@ -23,9 +24,11 @@ class UserRegister(BaseModel):
             raise ValueError("Role must be Admin or User")
         return v
 
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
 
 class UserResponse(BaseModel):
     id: int
@@ -43,12 +46,14 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class UserCreate(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=50)
     email: EmailStr
     password: str = Field(..., min_length=6)
     role: str = "User"
     status: str = "Approved"
+
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
@@ -57,15 +62,19 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     status: Optional[str] = None
 
+
 class PasswordResetRequest(BaseModel):
     new_password: str = Field(..., min_length=6)
+
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
+
 class VerifyOTPRequest(BaseModel):
     email: EmailStr
     otp: str = Field(..., min_length=6, max_length=6)
+
 
 class ForgotPasswordReset(BaseModel):
     email: EmailStr
@@ -80,13 +89,20 @@ class ForgotPasswordReset(BaseModel):
             raise ValueError("Passwords do not match")
         return v
 
+
+class AzureLoginRequest(BaseModel):
+    id_token: str
+
+
 class RoleChangeRequest(BaseModel):
     role: str
+
 
 class Token(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
+
 
 class AuditLogResponse(BaseModel):
     id: int
@@ -101,6 +117,7 @@ class AuditLogResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class PaginatedAuditLogs(BaseModel):
     total: int
