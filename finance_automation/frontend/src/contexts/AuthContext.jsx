@@ -1,7 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { authLogin, authRegister, authLogout, authMe } from "../services/api";
+import { PublicClientApplication } from "@azure/msal-browser";
+import { authLogin, authRegister, authLogout, authMe, authAzureLogin } from "../services/api";
+import { msalConfig, azureLoginScopes, isAzureAdConfigured } from "../config/azureConfig";
 
 const AuthContext = createContext(null);
+
+let msalInstance = null;
+if (isAzureAdConfigured()) {
+  msalInstance = new PublicClientApplication(msalConfig);
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -27,8 +34,41 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+    const initMsal = async () => {
+      if (msalInstance) {
+        await msalInstance.initialize();
+        msalInstance
+          .handleRedirectPromise()
+          .then(async (response) => {
+            if (response) {
+              const idToken = response.idToken;
+              try {
+                setLoading(true);
+                const data = await authAzureLogin(idToken);
+                localStorage.setItem("token", data.access_token);
+                setToken(data.access_token);
+                setUser(data.user);
+                return data.user;
+              } catch (err) {
+                console.error("Azure login failed:", err);
+                throw err;
+              } finally {
+                setLoading(false);
+              }
+            }
+          })
+          .catch((err) => {
+            console.error("MSAL redirect handle error:", err);
+          })
+          .finally(() => {
+            fetchUser();
+          });
+      } else {
+        fetchUser();
+      }
+    };
+    initMsal();
+  }, []);
 
   const login = async (email, password) => {
     setLoading(true);
@@ -43,6 +83,14 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loginWithMicrosoft = async () => {
+    if (!msalInstance) {
+      throw new Error("Azure AD is not configured.");
+    }
+    await msalInstance.initialize();
+    await msalInstance.loginRedirect(azureLoginScopes);
   };
 
   const register = async (fullName, email, password, confirmPassword, role) => {
@@ -71,7 +119,19 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshUser: fetchUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        loading,
+        login,
+        loginWithMicrosoft,
+        register,
+        logout,
+        refreshUser: fetchUser,
+        isAzureAdConfigured: isAzureAdConfigured(),
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

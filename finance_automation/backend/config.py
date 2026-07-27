@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     EMAIL_PORT: int = 465
     PASSWORD_RESET_OTP_EXPIRE_MINUTES: int = 10
 
+    AZURE_CLIENT_ID: str = ""
+    AZURE_TENANT_ID: str = ""
+
     FLEXFIELD_SEGMENTS: dict = {
         "company": 0,
         "cost_center": 1,

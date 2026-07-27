@@ -226,6 +226,22 @@ export async function resetForgottenPassword(email, otp, newPassword, confirmPas
   return response.json();
 }
 
+export async function authAzureLogin(idToken) {
+  const response = await fetch(`${API_BASE}/auth/azure-login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ id_token: idToken }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Azure login failed");
+  }
+  return response.json();
+}
+
 export async function authLogout() {
   const response = await fetch(`${API_BASE}/auth/logout`, {
     method: "POST",
