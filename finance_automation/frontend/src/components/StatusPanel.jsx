@@ -14,6 +14,7 @@ import {
   CheckCircle as CheckIcon,
   Error as ErrorIcon,
   HourglassEmpty as PendingIcon,
+  Timeline as TimelineIcon,
 } from "@mui/icons-material";
 
 const stepLabels = [
@@ -24,41 +25,57 @@ const stepLabels = [
 ];
 
 export default function StatusPanel({ activeStep, uploadResult, reportResult, error }) {
+  const statusLabel = reportResult
+    ? "Completed"
+    : error
+      ? "Attention"
+      : activeStep > 0
+        ? "In progress"
+        : "Not started";
+  const StatusIcon = reportResult ? CheckIcon : error ? ErrorIcon : PendingIcon;
+
   return (
     <Paper
       elevation={0}
       sx={{
-        p: { xs: 2.5, md: 3 },
-        mt: 3,
+        p: { xs: 2, md: 2.25 },
+        mt: 2.5,
         borderRadius: 2,
         border: "1px solid #dce5ee",
         boxShadow: "0 14px 34px rgba(15, 23, 42, 0.06)",
         backgroundColor: "#ffffff",
       }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, mb: 2 }}>
-        <Box>
-          <Typography variant="h6" sx={{ fontWeight: 900, color: "#082f49" }}>
-            Processing Status
-          </Typography>
-          <Typography variant="body2" sx={{ color: "#64748b", fontWeight: 600 }}>
-            Report workflow progress
-          </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, mb: 1.25 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+          <Box sx={{ width: 34, height: 34, borderRadius: 1.25, display: "grid", placeItems: "center", backgroundColor: "#e0f2fe" }}>
+            <TimelineIcon sx={{ color: "#0369a1", fontSize: 20 }} />
+          </Box>
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#082f49", lineHeight: 1.15 }}>
+              Processing Status
+            </Typography>
+            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700 }}>
+              Report workflow progress
+            </Typography>
+          </Box>
         </Box>
         <Chip
-          label={reportResult ? "Completed" : error ? "Attention" : activeStep > 0 ? "In progress" : "Not started"}
+          icon={<StatusIcon />}
+          label={statusLabel}
           color={reportResult ? "success" : error ? "error" : "default"}
-          sx={{ fontWeight: 800 }}
+          sx={{ height: 30, fontWeight: 900, borderRadius: 1.5 }}
         />
       </Box>
-      <Divider sx={{ mb: 2 }} />
+      <Divider sx={{ mb: 1.25 }} />
 
       <Stepper
         activeStep={activeStep}
         alternativeLabel
         sx={{
-          mb: 3,
-          "& .MuiStepLabel-label": { fontWeight: 700, color: "#64748b" },
+          mb: 1.5,
+          "& .MuiStepIcon-root": { fontSize: 24 },
+          "& .MuiStepLabel-label": { mt: 0.75, fontWeight: 700, color: "#64748b" },
           "& .Mui-active .MuiStepLabel-label": { color: "#0B3041", fontWeight: 900 },
           "& .Mui-completed .MuiStepLabel-label": { color: "#166534", fontWeight: 900 },
         }}

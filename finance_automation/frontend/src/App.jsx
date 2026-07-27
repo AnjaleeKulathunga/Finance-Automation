@@ -8,6 +8,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import Unauthorized from "./pages/Unauthorized";
 import AdminLayout from "./layouts/AdminLayout";
 import UserDashboard from "./pages/UserDashboard";
+import UserProfile from "./pages/UserProfile";
 
 export default function App() {
   return (
@@ -33,6 +34,15 @@ export default function App() {
             element={
               <ProtectedRoute allowedRoles={["User", "Admin"]}>
                 <UserDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute allowedRoles={["User", "Admin"]}>
+                <UserProfile />
               </ProtectedRoute>
             }
           />
