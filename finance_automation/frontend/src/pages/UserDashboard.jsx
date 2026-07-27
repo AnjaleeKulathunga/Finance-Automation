@@ -251,10 +251,10 @@ export default function UserDashboard() {
 
           <main className="flex min-w-0 flex-1 flex-col">
             <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 px-4 py-3 shadow-sm backdrop-blur md:px-8">
-              <div className="flex items-center justify-between gap-4">
+              <div className="relative flex items-center justify-between gap-4">
                 <div className="flex min-w-0 items-center gap-4">
                   <img src="/logo.png" alt="SLT Mobitel Logo" className="h-9 object-contain lg:hidden" />
-                  <div className="min-w-0">
+                  <div className="min-w-0 text-left md:absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:text-center">
                     <h2 className="truncate text-lg font-black text-[#082f49] md:text-2xl">Finance Revenue Automation</h2>
                     <p className="hidden text-sm font-bold text-slate-500 sm:block">Professional revenue reporting dashboard</p>
                   </div>

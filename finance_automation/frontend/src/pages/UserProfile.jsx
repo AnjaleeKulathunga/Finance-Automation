@@ -8,7 +8,6 @@ import {
   Box,
   Button,
   Chip,
-  Divider,
   Paper,
   Tooltip,
   Typography,
@@ -80,10 +79,10 @@ export default function UserProfile() {
 
           <main className="flex min-w-0 flex-1 flex-col">
             <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 px-4 py-3 shadow-sm backdrop-blur md:px-8">
-              <div className="flex items-center justify-between gap-4">
+              <div className="relative flex items-center justify-between gap-4">
                 <div className="flex min-w-0 items-center gap-4">
                   <img src="/logo.png" alt="SLT Mobitel Logo" className="h-9 object-contain lg:hidden" />
-                  <div className="min-w-0">
+                  <div className="min-w-0 text-left md:absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:text-center">
                     <h2 className="truncate text-lg font-black text-[#082f49] md:text-2xl">User Profile</h2>
                     <p className="hidden text-sm font-bold text-slate-500 sm:block">Finance Revenue Automation account details</p>
                   </div>
@@ -123,73 +122,84 @@ export default function UserProfile() {
               </div>
             </header>
 
-            <div className="flex-1 px-4 py-6 md:px-8 lg:px-10">
+            <div className="flex flex-1 items-center justify-center px-4 py-8 md:px-8 lg:px-10">
               <Paper
                 elevation={0}
                 sx={{
+                  width: "100%",
+                  maxWidth: 560,
                   overflow: "hidden",
-                  borderRadius: 2,
+                  borderRadius: 4,
                   border: "1px solid #dce5ee",
-                  boxShadow: "0 18px 42px rgba(15, 23, 42, 0.08)",
+                  boxShadow: "0 26px 62px rgba(8, 47, 73, 0.16)",
                   backgroundColor: "#ffffff",
                 }}
               >
-                <Box sx={{ backgroundColor: "#082f49", color: "white", p: { xs: 3, md: 4 } }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 2.5, flexWrap: "wrap" }}>
-                    <Box
-                      sx={{
-                        width: 76,
-                        height: 76,
-                        borderRadius: 2,
-                        display: "grid",
-                        placeItems: "center",
-                        backgroundColor: "rgba(255,255,255,0.12)",
-                        border: "1px solid rgba(255,255,255,0.18)",
-                      }}
-                    >
-                      <PersonIcon sx={{ fontSize: 42 }} />
-                    </Box>
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1.1 }}>
-                        {user?.full_name || "Finance User"}
-                      </Typography>
-                      <Typography sx={{ mt: 1, color: "#cbd5e1", fontWeight: 700 }}>
-                        {user?.email || "No email available"}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Box>
+                <div className="relative h-44 overflow-hidden bg-[linear-gradient(135deg,#082f49_0%,#0f5368_58%,#0f766e_100%)]">
+                  <div className="absolute -left-16 -top-20 h-56 w-56 rounded-full bg-cyan-300/18" />
+                  <div className="absolute -right-20 top-4 h-64 w-64 rounded-full bg-emerald-300/14" />
+                  <div className="absolute left-1/2 top-12 grid h-40 w-40 -translate-x-1/2 place-items-center rounded-full border-[12px] border-white bg-[#dff6fb] shadow-[0_18px_35px_rgba(8,47,73,0.24)]">
+                    <PersonIcon sx={{ fontSize: 72, color: "#082f49" }} />
+                  </div>
+                </div>
 
-                <Box sx={{ p: { xs: 3, md: 4 } }}>
-                  <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", mb: 3 }}>
+                <div className="px-6 pb-8 pt-20 text-center md:px-9">
+                  <Typography
+                    variant="h4"
+                    sx={{
+                      color: "#082f49",
+                      fontWeight: 900,
+                      textTransform: "uppercase",
+                      letterSpacing: 0,
+                      lineHeight: 1.15,
+                    }}
+                  >
+                    {user?.full_name || "Finance User"}
+                  </Typography>
+
+                  <div className="mt-3 flex items-center justify-center gap-2 text-slate-500">
+                    <EmailIcon fontSize="small" />
+                    <span className="break-all text-sm font-bold">{user?.email || "No email available"}</span>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
                     <Chip
                       icon={<VerifiedUserIcon />}
                       label={user?.status || "Approved"}
                       sx={{ fontWeight: 900, color: "#047857", backgroundColor: "#d1fae5" }}
                     />
-                    <Chip label={user?.role || "User"} sx={{ fontWeight: 900, color: "#0f766e", backgroundColor: "#ccfbf1" }} />
-                  </Box>
-
-                  <Divider sx={{ mb: 3 }} />
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                      <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-sky-100 text-sky-700">
-                        <PersonIcon fontSize="small" />
-                      </div>
-                      <p className="text-xs font-black uppercase text-slate-500">User Name</p>
-                      <p className="mt-1 text-lg font-black text-slate-900">{user?.full_name || "Finance User"}</p>
-                    </div>
-
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                      <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-emerald-100 text-emerald-700">
-                        <EmailIcon fontSize="small" />
-                      </div>
-                      <p className="text-xs font-black uppercase text-slate-500">Email Address</p>
-                      <p className="mt-1 break-words text-lg font-black text-slate-900">{user?.email || "No email available"}</p>
-                    </div>
+                    <Chip
+                      label={user?.role || "User"}
+                      sx={{ fontWeight: 900, color: "#0f766e", backgroundColor: "#ccfbf1" }}
+                    />
                   </div>
-                </Box>
+
+                  <Typography sx={{ mx: "auto", mt: 5, maxWidth: 390, color: "#64748b", fontWeight: 700, lineHeight: 1.7 }}>
+                    Account details for Finance Revenue Automation. Use this profile to confirm your registered name and email address.
+                  </Typography>
+
+                  <Button
+                    variant="outlined"
+                    onClick={() => navigate("/dashboard")}
+                    sx={{
+                      mt: 4,
+                      minWidth: 190,
+                      borderRadius: 999,
+                      borderColor: "#082f49",
+                      color: "#082f49",
+                      textTransform: "none",
+                      fontWeight: 900,
+                      px: 4,
+                      py: 1.1,
+                      "&:hover": {
+                        borderColor: "#0f5368",
+                        backgroundColor: "#e0f2fe",
+                      },
+                    }}
+                  >
+                    View Dashboard
+                  </Button>
+                </div>
               </Paper>
             </div>
 
