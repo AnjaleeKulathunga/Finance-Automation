@@ -34,36 +34,40 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   useEffect(() => {
-    if (msalInstance) {
-      msalInstance
-        .handleRedirectPromise()
-        .then(async (response) => {
-          if (response) {
-            const idToken = response.idToken;
-            try {
-              setLoading(true);
-              const data = await authAzureLogin(idToken);
-              localStorage.setItem("token", data.access_token);
-              setToken(data.access_token);
-              setUser(data.user);
-              return data.user;
-            } catch (err) {
-              console.error("Azure login failed:", err);
-              throw err;
-            } finally {
-              setLoading(false);
+    const initMsal = async () => {
+      if (msalInstance) {
+        await msalInstance.initialize();
+        msalInstance
+          .handleRedirectPromise()
+          .then(async (response) => {
+            if (response) {
+              const idToken = response.idToken;
+              try {
+                setLoading(true);
+                const data = await authAzureLogin(idToken);
+                localStorage.setItem("token", data.access_token);
+                setToken(data.access_token);
+                setUser(data.user);
+                return data.user;
+              } catch (err) {
+                console.error("Azure login failed:", err);
+                throw err;
+              } finally {
+                setLoading(false);
+              }
             }
-          }
-        })
-        .catch((err) => {
-          console.error("MSAL redirect handle error:", err);
-        })
-        .finally(() => {
-          fetchUser();
-        });
-    } else {
-      fetchUser();
-    }
+          })
+          .catch((err) => {
+            console.error("MSAL redirect handle error:", err);
+          })
+          .finally(() => {
+            fetchUser();
+          });
+      } else {
+        fetchUser();
+      }
+    };
+    initMsal();
   }, []);
 
   const login = async (email, password) => {
@@ -85,12 +89,8 @@ export function AuthProvider({ children }) {
     if (!msalInstance) {
       throw new Error("Azure AD is not configured.");
     }
-    try {
-      await msalInstance.loginRedirect(azureLoginScopes);
-    } catch (err) {
-      console.error("Azure AD redirect failed:", err);
-      throw err;
-    }
+    await msalInstance.initialize();
+    await msalInstance.loginRedirect(azureLoginScopes);
   };
 
   const register = async (fullName, email, password, confirmPassword, role) => {
