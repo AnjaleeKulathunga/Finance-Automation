@@ -208,6 +208,18 @@ def _build_report_for_session(
     file_paths["report_month"] = report_month
     file_paths["report_year"] = report_year
 
+    session_dir = settings.UPLOAD_DIR / session_id
+    if session_dir.exists():
+        try:
+            cy_unmapped_df.to_csv(session_dir / "cy_unmapped.csv", index=False)
+            py_unmapped_df.to_csv(session_dir / "py_unmapped.csv", index=False)
+            (session_dir / "report_meta.json").write_text(
+                json.dumps({"report_month": report_month, "report_year": report_year}),
+                encoding="utf-8"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to persist unmapped DataFrames to disk: {e}")
+
     logger.info("Processing current year TB data...")
     cy_tb_data = process_trial_balance(cy_tb_df)
 
@@ -538,6 +550,82 @@ async def download_report(
     )
 
 
+def _get_or_compute_unmapped_dfs(session_id: str, file_paths: dict):
+    import pandas as pd
+    session_dir = settings.UPLOAD_DIR / session_id
+    cy_unmapped = file_paths.get("cy_unmapped_df")
+    py_unmapped = file_paths.get("py_unmapped_df")
+    report_month = file_paths.get("report_month", "")
+    report_year = file_paths.get("report_year", "")
+
+    meta_file = session_dir / "report_meta.json"
+    cy_csv = session_dir / "cy_unmapped.csv"
+    py_csv = session_dir / "py_unmapped.csv"
+
+    if (cy_unmapped is None or py_unmapped is None) and cy_csv.exists() and py_csv.exists():
+        try:
+            cy_unmapped = pd.read_csv(cy_csv).fillna("")
+            py_unmapped = pd.read_csv(py_csv).fillna("")
+            file_paths["cy_unmapped_df"] = cy_unmapped
+            file_paths["py_unmapped_df"] = py_unmapped
+        except Exception as e:
+            logger.warning(f"Error loading unmapped CSVs for session {session_id}: {e}")
+
+    if (not report_month or not report_year) and meta_file.exists():
+        try:
+            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+            report_month = meta.get("report_month", "")
+            report_year = meta.get("report_year", "")
+            file_paths["report_month"] = report_month
+            file_paths["report_year"] = report_year
+        except Exception:
+            pass
+
+    if cy_unmapped is None or py_unmapped is None or not report_month or not report_year:
+        logger.info(f"Re-generating unmapped DataFrames on the fly for session {session_id}")
+        tb_current_path = file_paths.get("tb_current")
+        tb_previous_path = file_paths.get("tb_previous")
+        mapping_path = file_paths.get("mapping")
+
+        if not tb_current_path or not tb_previous_path:
+            return None, None, "", ""
+
+        report_month, report_year = detect_tb_month_and_year(tb_current_path)
+
+        mapping_engine = MappingEngine()
+        if mapping_path and os.path.exists(mapping_path):
+            mapping_engine.load_mapping(mapping_path)
+
+        cy_tb_df = read_current_year_tb(tb_current_path)
+        if not cy_tb_df.empty:
+            cy_tb_df = mapping_engine.map_tb_rows(cy_tb_df)
+            cy_unmapped = mapping_engine.get_unmapped_report()
+        else:
+            cy_unmapped = pd.DataFrame()
+
+        py_tb_df = read_previous_year_tb(tb_previous_path)
+        if not py_tb_df.empty:
+            py_tb_df = mapping_engine.map_tb_rows(py_tb_df)
+            py_unmapped = mapping_engine.get_unmapped_report()
+        else:
+            py_unmapped = pd.DataFrame()
+
+        file_paths["cy_unmapped_df"] = cy_unmapped
+        file_paths["py_unmapped_df"] = py_unmapped
+        file_paths["report_month"] = report_month
+        file_paths["report_year"] = report_year
+
+        if session_dir.exists():
+            try:
+                cy_unmapped.to_csv(cy_csv, index=False)
+                py_unmapped.to_csv(py_csv, index=False)
+                meta_file.write_text(json.dumps({"report_month": report_month, "report_year": report_year}), encoding="utf-8")
+            except Exception:
+                pass
+
+    return cy_unmapped, py_unmapped, report_month, report_year
+
+
 @router.post("/generate-unmapped")
 async def generate_unmapped_report(
     request: Request,
@@ -560,10 +648,8 @@ async def generate_unmapped_report(
                 "Please upload the files and generate the report again."
             ),
         )
-    cy_unmapped = file_paths.get("cy_unmapped_df")
-    py_unmapped = file_paths.get("py_unmapped_df")
-    report_month = file_paths.get("report_month", "")
-    report_year = file_paths.get("report_year", "")
+
+    cy_unmapped, py_unmapped, report_month, report_year = _get_or_compute_unmapped_dfs(session_id, file_paths)
 
     if cy_unmapped is None or py_unmapped is None:
         raise HTTPException(
