@@ -8,7 +8,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends, 
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.database.connection import get_db
-from app.auth.jwt_handler import get_current_active_user
+from app.auth.jwt_handler import get_admin_user, get_current_active_user
 from app.models.user_and_log import User
 from app.services.audit_logger import log_audit
 from utils.logger import logger
@@ -36,13 +36,32 @@ router = APIRouter(prefix="/api", tags=["finance"])
 uploaded_files_store: dict = {}
 
 
+DEFAULT_FILES_DIR = settings.TEMPLATE_DIR / "defaults"
+DEFAULT_FILES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _default_file_path(file_type: str) -> Path:
+    if file_type not in {"budget", "mapping"}:
+        raise HTTPException(status_code=400, detail="file_type must be 'budget' or 'mapping'.")
+    matches = sorted(DEFAULT_FILES_DIR.glob(f"default_{file_type}.*"))
+    return matches[-1] if matches else DEFAULT_FILES_DIR / f"default_{file_type}.xlsx"
+
+
+def _default_file_info(file_type: str) -> dict:
+    path = _default_file_path(file_type)
+    return {
+        f"default_{file_type}_active": path.exists(),
+        f"default_{file_type}_filename": path.name if path.exists() else None,
+    }
+
+
 @router.post("/upload")
 async def upload_files(
     request: Request,
     tb_current: UploadFile = File(...),
     tb_previous: UploadFile = File(...),
-    budget: UploadFile = File(...),
-    mapping: UploadFile = File(...),
+    budget: UploadFile | None = File(None),
+    mapping: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -56,9 +75,11 @@ async def upload_files(
     files = {
         "tb_current": tb_current,
         "tb_previous": tb_previous,
-        "budget": budget,
-        "mapping": mapping,
     }
+    if budget is not None:
+        files["budget"] = budget
+    if mapping is not None:
+        files["mapping"] = mapping
 
     for label, upload_file in files.items():
         ext = Path(upload_file.filename).suffix.lower()
@@ -83,6 +104,13 @@ async def upload_files(
 
         file_paths[label] = str(save_path)
         logger.info(f"Saved {label}: {upload_file.filename} -> {save_path}")
+
+    for label in ["budget", "mapping"]:
+        if label not in file_paths:
+            default_path = _default_file_path(label)
+            if default_path.exists():
+                file_paths[label] = str(default_path)
+                logger.info(f"Using default {label} workbook: {default_path}")
 
     validation = validate_uploaded_files(
         file_paths.get("tb_current"),
@@ -128,9 +156,67 @@ async def upload_files(
         "files": {
             "tb_current": tb_current.filename,
             "tb_previous": tb_previous.filename,
-            "budget": budget.filename,
-            "mapping": mapping.filename,
+            "budget": budget.filename if budget else Path(file_paths["budget"]).name,
+            "mapping": mapping.filename if mapping else Path(file_paths["mapping"]).name,
         },
+        "warnings": validation.warnings,
+    }
+
+
+@router.get("/admin/config")
+async def get_admin_config(current_user: User = Depends(get_current_active_user)):
+    return {
+        **_default_file_info("budget"),
+        **_default_file_info("mapping"),
+    }
+
+
+@router.post("/admin/upload-default")
+async def upload_default_file(
+    request: Request,
+    file_type: str = Query(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    if file_type not in {"budget", "mapping"}:
+        raise HTTPException(status_code=400, detail="file_type must be 'budget' or 'mapping'.")
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in {".xlsx", ".xls"}:
+        raise HTTPException(status_code=400, detail="Default files must be Excel workbooks.")
+
+    target_path = DEFAULT_FILES_DIR / f"default_{file_type}{ext}"
+    for old_path in DEFAULT_FILES_DIR.glob(f"default_{file_type}.*"):
+        old_path.unlink(missing_ok=True)
+
+    with open(target_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+
+    validation = (
+        validate_budget_workbook(str(target_path))
+        if file_type == "budget"
+        else validate_mapping_workbook(str(target_path))
+    )
+    if not validation.is_valid:
+        target_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail={"errors": validation.errors})
+
+    log_audit(
+        db=db,
+        action="Default File Upload",
+        module="Finance Admin",
+        description=f"Uploaded default {file_type} workbook: {file.filename}",
+        user_id=admin.id,
+        user_name=admin.full_name,
+        request=request,
+    )
+
+    return {
+        "status": "success",
+        "file_type": file_type,
+        "filename": target_path.name,
         "warnings": validation.warnings,
     }
 

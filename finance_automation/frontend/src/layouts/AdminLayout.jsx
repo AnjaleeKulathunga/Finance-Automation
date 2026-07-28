@@ -244,15 +244,6 @@ export default function AdminLayout() {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-white/5">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-[#E1251B] hover:bg-[#C11812] rounded-xl text-sm font-bold transition-all shadow-md active:scale-95"
-          >
-            <span>🚪</span>
-            <span>Sign Out</span>
-          </button>
-        </div>
       </aside>
 
       {/* Main Content Area */}
