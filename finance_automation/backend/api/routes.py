@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.database.connection import get_db, SessionLocal
 from app.auth.jwt_handler import get_admin_user, get_current_active_user
-from app.models.user_and_log import User
+from app.models.user_and_log import User, ReportJob
 from app.services.audit_logger import log_audit
 from utils.logger import logger
 from config import settings
@@ -38,29 +38,43 @@ uploaded_files_store: dict = {}
 report_jobs: dict = {}
 
 
-def _job_result_path(session_id: str) -> Path:
-    """Return the path for persisting a completed job result to disk."""
-    return settings.OUTPUT_DIR / f"{session_id}_result.json"
-
-
-def _save_job_result(session_id: str, result: dict):
-    """Persist job result dict to a JSON file so all workers can read it."""
+def _db_save_job(session_id: str, status: str, result: dict | None = None):
+    """Upsert a report job row in the database (visible to all workers)."""
+    db = SessionLocal()
     try:
-        path = _job_result_path(session_id)
-        path.write_text(json.dumps(result), encoding="utf-8")
+        row = db.query(ReportJob).filter(ReportJob.session_id == session_id).first()
+        if row:
+            row.status = status
+            row.result_json = json.dumps(result) if result is not None else None
+        else:
+            row = ReportJob(
+                session_id=session_id,
+                status=status,
+                result_json=json.dumps(result) if result is not None else None,
+            )
+            db.add(row)
+        db.commit()
     except Exception as exc:
-        logger.warning(f"Could not persist job result for {session_id}: {exc}")
+        logger.warning(f"Could not persist job to DB for {session_id}: {exc}")
+    finally:
+        db.close()
 
 
-def _load_job_result(session_id: str) -> dict | None:
-    """Load a previously persisted job result from disk, or None if not found."""
-    path = _job_result_path(session_id)
-    if path.exists():
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            logger.warning(f"Could not read job result for {session_id}: {exc}")
-    return None
+def _db_load_job(session_id: str) -> dict | None:
+    """Load a report job row from the database. Returns None if not found."""
+    db = SessionLocal()
+    try:
+        row = db.query(ReportJob).filter(ReportJob.session_id == session_id).first()
+        if row and row.result_json:
+            return json.loads(row.result_json)
+        if row and row.status == "processing":
+            return {"status": "processing", "message": "Report generation in progress."}
+        return None
+    except Exception as exc:
+        logger.warning(f"Could not load job from DB for {session_id}: {exc}")
+        return None
+    finally:
+        db.close()
 
 
 DEFAULT_FILES_DIR = settings.TEMPLATE_DIR / "defaults"
@@ -248,7 +262,8 @@ def _run_report_job(session_id: str, user_id: int, user_name: str):
         result = _build_report_for_session(session_id, db, user_id, user_name)
         job_data = result.model_dump()
         report_jobs[session_id] = job_data
-        _save_job_result(session_id, job_data)
+        # Persist to DB so other workers can read the full result
+        _db_save_job(session_id, "success", job_data)
     except HTTPException as e:
         detail = e.detail
         if isinstance(detail, dict) and "errors" in detail:
@@ -258,7 +273,7 @@ def _run_report_job(session_id: str, user_id: int, user_name: str):
         logger.error(f"Report job failed for session {session_id}: {message}")
         error_data = {"status": "error", "message": message}
         report_jobs[session_id] = error_data
-        _save_job_result(session_id, error_data)
+        _db_save_job(session_id, "error", error_data)
     except Exception as e:
         logger.exception(f"Report job failed for session {session_id}: {e}")
         error_data = {
@@ -266,7 +281,7 @@ def _run_report_job(session_id: str, user_id: int, user_name: str):
             "message": f"Report generation failed: {str(e)}",
         }
         report_jobs[session_id] = error_data
-        _save_job_result(session_id, error_data)
+        _db_save_job(session_id, "error", error_data)
     finally:
         db.close()
 
@@ -453,6 +468,8 @@ async def generate_report(
     if existing_job:
         return existing_job
 
+    # Mark as processing in DB (visible to other workers) and launch background task
+    _db_save_job(session_id, "processing")
     report_jobs[session_id] = {
         "status": "processing",
         "message": "Report generation started.",
@@ -472,48 +489,25 @@ async def get_report_status(
     session_id: str,
     current_user: User = Depends(get_current_active_user)
 ):
-    # Check in-memory store first (same worker, fastest path)
+    # 1. Check in-memory (same worker — fastest path)
     job = report_jobs.get(session_id)
-    if job:
-        # Backfill in-memory cache from disk for this worker if needed
-        if job.get("status") in ("success", "error"):
-            return job
-        # Still processing — check disk in case another worker already finished
-        disk_result = _load_job_result(session_id)
-        if disk_result:
-            report_jobs[session_id] = disk_result
-            return disk_result
+    if job and job.get("status") in ("success", "error"):
         return job
 
-    # Not in this worker's memory — try the persisted disk result first
-    disk_result = _load_job_result(session_id)
-    if disk_result:
-        report_jobs[session_id] = disk_result  # populate local cache
-        return disk_result
+    # 2. Query the database (works across all workers and restarts)
+    db_result = _db_load_job(session_id)
+    if db_result:
+        if db_result.get("status") in ("success", "error"):
+            # Cache in this worker's memory for future polls
+            report_jobs[session_id] = db_result
+        return db_result
 
-    # Last resort: scan output directory (status unknown, return partial info)
-    generated_files = sorted(settings.OUTPUT_DIR.glob(f"Revenue_*.pptx"))
-    if generated_files:
-        latest = generated_files[-1]
-        # Try to parse month/year from filename: Revenue_{month}_{year}.pptx
-        parts = latest.stem.split("_")  # ["Revenue", month, year]
-        month = parts[1] if len(parts) >= 2 else ""
-        year = int(parts[2]) if len(parts) >= 3 and parts[2].isdigit() else 0
-        return {
-            "status": "success",
-            "filename": latest.name,
-            "message": "Report generated successfully.",
-            "report_month": month,
-            "report_year": year,
-            "total_mapped": 0,
-            "unmapped_count": 0,
-            "processing_time_seconds": 0.0,
-        }
+    # 3. If in-memory shows "processing" but DB has nothing yet, keep polling
+    if job:
+        return job
 
-    raise HTTPException(
-        status_code=404,
-        detail="Report generation status not found. Please generate the report again.",
-    )
+    # 4. Truly unknown session — tell client to keep waiting (do NOT return fake success)
+    return {"status": "processing", "message": "Waiting for report generation to start."}
 
 
 @router.get("/download/{filename}")
