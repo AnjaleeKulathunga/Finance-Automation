@@ -45,6 +45,25 @@ async function parseResponseError(response, defaultMessage = "Request failed") {
   return new Error(errorMsg);
 }
 
+async function safeJsonResponse(response, defaultMsg = "Invalid response from server") {
+  if (!response.ok) {
+    throw await parseResponseError(response, defaultMsg);
+  }
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    const text = await response.text();
+    if (text.trim().startsWith("<") || text.includes("<html")) {
+      throw new Error(`Server returned HTML instead of JSON (${response.status}). Check backend service URL & proxy routing.`);
+    }
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      throw new Error(text || `${defaultMsg} (${response.status})`);
+    }
+  }
+  return response.json();
+}
+
 // Upload & Report Generation
 export async function uploadFiles(files) {
   const formData = new FormData();
@@ -63,11 +82,7 @@ export async function uploadFiles(files) {
     body: formData,
   });
 
-  if (!response.ok) {
-    throw await parseResponseError(response, "Upload failed");
-  }
-
-  return response.json();
+  return safeJsonResponse(response, "Upload failed");
 }
 
 export async function generateReport(sessionId) {
@@ -76,11 +91,7 @@ export async function generateReport(sessionId) {
     headers: getAuthHeaders(),
   });
 
-  if (!response.ok) {
-    throw await parseResponseError(response, "Report generation failed");
-  }
-
-  return response.json();
+  return safeJsonResponse(response, "Report generation failed");
 }
 
 export function getDownloadUrl(filename) {
@@ -93,11 +104,7 @@ export async function generateUnmappedReport(sessionId) {
     headers: getAuthHeaders(),
   });
 
-  if (!response.ok) {
-    throw await parseResponseError(response, "Unmapped report generation failed");
-  }
-
-  return response.json();
+  return safeJsonResponse(response, "Unmapped report generation failed");
 }
 
 export function getUnmappedDownloadUrl(filename) {
@@ -109,10 +116,7 @@ export async function getAdminConfig() {
   const response = await fetch(`${API_BASE}/admin/config`, {
     headers: getAuthHeaders(),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to fetch admin config");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to fetch admin config");
 }
 
 export async function uploadDefaultFile(fileType, file) {
@@ -125,30 +129,21 @@ export async function uploadDefaultFile(fileType, file) {
     body: formData,
   });
 
-  if (!response.ok) {
-    throw await parseResponseError(response, "Default upload failed");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Default upload failed");
 }
 
 export async function getSessions() {
   const response = await fetch(`${API_BASE}/admin/sessions`, {
     headers: getAuthHeaders(),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to fetch sessions history");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to fetch sessions history");
 }
 
 export async function getFlexfields() {
   const response = await fetch(`${API_BASE}/admin/flexfields`, {
     headers: getAuthHeaders(),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to fetch flexfields configuration");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to fetch flexfields configuration");
 }
 
 export async function updateFlexfields(flexfields) {
@@ -160,10 +155,7 @@ export async function updateFlexfields(flexfields) {
     body: JSON.stringify(flexfields),
   });
 
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to update flexfields");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to update flexfields");
 }
 
 // AUTH SERVICES
@@ -182,10 +174,7 @@ export async function authRegister(fullName, email, password, confirmPassword, r
     }),
   });
 
-  if (!response.ok) {
-    throw await parseResponseError(response, "Registration failed");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Registration failed");
 }
 
 export async function authLogin(email, password) {
@@ -197,10 +186,7 @@ export async function authLogin(email, password) {
     body: JSON.stringify({ email, password }),
   });
 
-  if (!response.ok) {
-    throw await parseResponseError(response, "Login failed");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Login failed");
 }
 
 export async function requestPasswordResetOtp(email) {
@@ -212,10 +198,7 @@ export async function requestPasswordResetOtp(email) {
     body: JSON.stringify({ email }),
   });
 
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to send OTP");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to send OTP");
 }
 
 export async function verifyPasswordResetOtp(email, otp) {
@@ -227,10 +210,7 @@ export async function verifyPasswordResetOtp(email, otp) {
     body: JSON.stringify({ email, otp }),
   });
 
-  if (!response.ok) {
-    throw await parseResponseError(response, "Invalid OTP");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Invalid OTP");
 }
 
 export async function resetForgottenPassword(email, otp, newPassword, confirmPassword) {
@@ -247,10 +227,7 @@ export async function resetForgottenPassword(email, otp, newPassword, confirmPas
     }),
   });
 
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to reset password");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to reset password");
 }
 
 export async function authAzureLogin(idToken) {
@@ -262,10 +239,7 @@ export async function authAzureLogin(idToken) {
     body: JSON.stringify({ id_token: idToken }),
   });
 
-  if (!response.ok) {
-    throw await parseResponseError(response, "Azure login failed");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Azure login failed");
 }
 
 // ── Microsoft PKCE SSO ────────────────────────────────────────────────────
@@ -276,10 +250,7 @@ export async function authAzureLogin(idToken) {
  */
 export async function getMicrosoftLoginUrl() {
   const response = await fetch(`${API_BASE}/auth/microsoft/login`);
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to get Microsoft login URL");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to get Microsoft login URL");
 }
 
 /**
@@ -294,10 +265,7 @@ export async function authMicrosoftFinish(code, state) {
     body: JSON.stringify({ code, state }),
   });
 
-  if (!response.ok) {
-    throw await parseResponseError(response, "Microsoft SSO login failed");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Microsoft SSO login failed");
 }
 
 /**
@@ -317,10 +285,7 @@ export async function authMicrosoftRegister(microsoftId, email, fullName, servic
     }),
   });
 
-  if (!response.ok) {
-    throw await parseResponseError(response, "Microsoft SSO registration failed");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Microsoft SSO registration failed");
 }
 
 export async function authLogout() {
@@ -328,20 +293,14 @@ export async function authLogout() {
     method: "POST",
     headers: getAuthHeaders(),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Logout failed");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Logout failed");
 }
 
 export async function authMe() {
   const response = await fetch(`${API_BASE}/auth/me`, {
     headers: getAuthHeaders(),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to fetch current user profile");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to fetch current user profile");
 }
 
 // USER MANAGEMENT SERVICES
@@ -349,20 +308,14 @@ export async function getUsers() {
   const response = await fetch(`${API_BASE}/users`, {
     headers: getAuthHeaders(),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to fetch users");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to fetch users");
 }
 
 export async function getUser(id) {
   const response = await fetch(`${API_BASE}/users/${id}`, {
     headers: getAuthHeaders(),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, `Failed to fetch user with ID ${id}`);
-  }
-  return response.json();
+  return safeJsonResponse(response, `Failed to fetch user with ID ${id}`);
 }
 
 export async function createUser(user) {
@@ -373,10 +326,7 @@ export async function createUser(user) {
     }),
     body: JSON.stringify(user),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to create user");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to create user");
 }
 
 export async function updateUser(id, userData) {
@@ -387,10 +337,7 @@ export async function updateUser(id, userData) {
     }),
     body: JSON.stringify(userData),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to update user");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to update user");
 }
 
 export async function deleteUser(id) {
@@ -398,10 +345,7 @@ export async function deleteUser(id) {
     method: "DELETE",
     headers: getAuthHeaders(),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to delete user");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to delete user");
 }
 
 export async function approveUser(id) {
@@ -409,10 +353,7 @@ export async function approveUser(id) {
     method: "PATCH",
     headers: getAuthHeaders(),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to approve user");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to approve user");
 }
 
 export async function rejectUser(id) {
@@ -420,10 +361,7 @@ export async function rejectUser(id) {
     method: "PATCH",
     headers: getAuthHeaders(),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to reject user");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to reject user");
 }
 
 export async function activateUser(id) {
@@ -431,10 +369,7 @@ export async function activateUser(id) {
     method: "PATCH",
     headers: getAuthHeaders(),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to activate user");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to activate user");
 }
 
 export async function deactivateUser(id) {
@@ -442,10 +377,7 @@ export async function deactivateUser(id) {
     method: "PATCH",
     headers: getAuthHeaders(),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to deactivate user");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to deactivate user");
 }
 
 export async function changeUserRole(id, role) {
@@ -456,10 +388,7 @@ export async function changeUserRole(id, role) {
     }),
     body: JSON.stringify({ role }),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to change role");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to change role");
 }
 
 export async function resetUserPassword(id, newPassword) {
@@ -470,10 +399,7 @@ export async function resetUserPassword(id, newPassword) {
     }),
     body: JSON.stringify({ new_password: newPassword }),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to reset password");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to reset password");
 }
 
 // AUDIT LOG SERVICES
@@ -491,8 +417,5 @@ export async function getSystemAuditLogs(params = {}) {
   const response = await fetch(`${API_BASE}/audit-logs${queryString}`, {
     headers: getAuthHeaders(),
   });
-  if (!response.ok) {
-    throw await parseResponseError(response, "Failed to fetch audit logs");
-  }
-  return response.json();
+  return safeJsonResponse(response, "Failed to fetch audit logs");
 }
