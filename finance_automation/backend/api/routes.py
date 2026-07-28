@@ -1,3 +1,4 @@
+from importlib.resources import files
 import os
 import time
 import uuid
@@ -61,13 +62,21 @@ async def upload_files(
 
     for label, upload_file in files.items():
         ext = Path(upload_file.filename).suffix.lower()
-        if ext not in settings.ALLOWED_EXTENSIONS:
+
+    # Allow TXT only for Trial Balance files
+        if label in ["tb_current", "tb_previous"]:
+            allowed_extensions = {".xlsx", ".xls", ".txt"}
+        else:
+            allowed_extensions = {".xlsx", ".xls"}
+
+        if ext not in allowed_extensions:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid file type for {label}: {ext}. Allowed: .xlsx, .xls",
-            )
+                detail=f"Invalid file type for {label}: {ext}. Allowed: {', '.join(sorted(allowed_extensions))}",
+        )
 
         save_path = session_dir / f"{label}__{upload_file.filename}"
+
         with open(save_path, "wb") as f:
             content = await upload_file.read()
             f.write(content)
