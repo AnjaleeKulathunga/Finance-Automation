@@ -1,4 +1,14 @@
-const API_BASE = "http://localhost:8000/api";
+const getApiBase = () => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+    return `${window.location.origin}/api`;
+  }
+  return "http://localhost:8000/api";
+};
+
+const API_BASE = getApiBase();
 
 function getAuthHeaders(headers = {}) {
   const token = localStorage.getItem("token");
@@ -6,6 +16,33 @@ function getAuthHeaders(headers = {}) {
     headers["Authorization"] = `Bearer ${token}`;
   }
   return headers;
+}
+
+async function parseResponseError(response, defaultMessage = "Request failed") {
+  let errorMsg = `${defaultMessage} (${response.status})`;
+  try {
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      const errorData = await response.json();
+      errorMsg = errorData.detail?.errors?.join(", ") || errorData.detail || errorData.message || errorMsg;
+    } else {
+      const text = await response.text();
+      if (response.status === 502) {
+        errorMsg = "502 Bad Gateway: The backend server is down or unreachable.";
+      } else if (response.status === 504) {
+        errorMsg = "504 Gateway Timeout: Request timed out on backend server.";
+      } else if (response.status === 413) {
+        errorMsg = "File is too large. Server file size limit exceeded.";
+      } else if (text && text.length < 200 && !text.includes("<html")) {
+        errorMsg = text;
+      }
+    }
+  } catch (e) {
+    if (response.status === 502) {
+      errorMsg = "502 Bad Gateway: Backend server unreachable.";
+    }
+  }
+  return new Error(errorMsg);
 }
 
 // Upload & Report Generation
@@ -27,8 +64,7 @@ export async function uploadFiles(files) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail?.errors?.join(", ") || error.detail || "Upload failed");
+    throw await parseResponseError(response, "Upload failed");
   }
 
   return response.json();
@@ -41,8 +77,7 @@ export async function generateReport(sessionId) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Report generation failed");
+    throw await parseResponseError(response, "Report generation failed");
   }
 
   return response.json();
@@ -59,8 +94,7 @@ export async function generateUnmappedReport(sessionId) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Unmapped report generation failed");
+    throw await parseResponseError(response, "Unmapped report generation failed");
   }
 
   return response.json();
@@ -76,7 +110,7 @@ export async function getAdminConfig() {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
-    throw new Error("Failed to fetch admin config");
+    throw await parseResponseError(response, "Failed to fetch admin config");
   }
   return response.json();
 }
@@ -92,8 +126,7 @@ export async function uploadDefaultFile(fileType, file) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail?.errors?.join(", ") || error.detail || "Default upload failed");
+    throw await parseResponseError(response, "Default upload failed");
   }
   return response.json();
 }
@@ -103,7 +136,7 @@ export async function getSessions() {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
-    throw new Error("Failed to fetch sessions history");
+    throw await parseResponseError(response, "Failed to fetch sessions history");
   }
   return response.json();
 }
@@ -113,7 +146,7 @@ export async function getFlexfields() {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
-    throw new Error("Failed to fetch flexfields configuration");
+    throw await parseResponseError(response, "Failed to fetch flexfields configuration");
   }
   return response.json();
 }
@@ -128,8 +161,7 @@ export async function updateFlexfields(flexfields) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to update flexfields");
+    throw await parseResponseError(response, "Failed to update flexfields");
   }
   return response.json();
 }
@@ -151,8 +183,7 @@ export async function authRegister(fullName, email, password, confirmPassword, r
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Registration failed");
+    throw await parseResponseError(response, "Registration failed");
   }
   return response.json();
 }
@@ -167,8 +198,7 @@ export async function authLogin(email, password) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Login failed");
+    throw await parseResponseError(response, "Login failed");
   }
   return response.json();
 }
@@ -183,8 +213,7 @@ export async function requestPasswordResetOtp(email) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to send OTP");
+    throw await parseResponseError(response, "Failed to send OTP");
   }
   return response.json();
 }
@@ -199,8 +228,7 @@ export async function verifyPasswordResetOtp(email, otp) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Invalid OTP");
+    throw await parseResponseError(response, "Invalid OTP");
   }
   return response.json();
 }
@@ -220,8 +248,7 @@ export async function resetForgottenPassword(email, otp, newPassword, confirmPas
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to reset password");
+    throw await parseResponseError(response, "Failed to reset password");
   }
   return response.json();
 }
@@ -236,8 +263,7 @@ export async function authAzureLogin(idToken) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Azure login failed");
+    throw await parseResponseError(response, "Azure login failed");
   }
   return response.json();
 }
@@ -251,8 +277,7 @@ export async function authAzureLogin(idToken) {
 export async function getMicrosoftLoginUrl() {
   const response = await fetch(`${API_BASE}/auth/microsoft/login`);
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to get Microsoft login URL");
+    throw await parseResponseError(response, "Failed to get Microsoft login URL");
   }
   return response.json();
 }
@@ -270,8 +295,7 @@ export async function authMicrosoftFinish(code, state) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Microsoft SSO login failed");
+    throw await parseResponseError(response, "Microsoft SSO login failed");
   }
   return response.json();
 }
@@ -294,8 +318,7 @@ export async function authMicrosoftRegister(microsoftId, email, fullName, servic
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Microsoft SSO registration failed");
+    throw await parseResponseError(response, "Microsoft SSO registration failed");
   }
   return response.json();
 }
@@ -306,7 +329,7 @@ export async function authLogout() {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
-    throw new Error("Logout failed");
+    throw await parseResponseError(response, "Logout failed");
   }
   return response.json();
 }
@@ -316,7 +339,7 @@ export async function authMe() {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
-    throw new Error("Failed to fetch current user profile");
+    throw await parseResponseError(response, "Failed to fetch current user profile");
   }
   return response.json();
 }
@@ -327,7 +350,7 @@ export async function getUsers() {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
-    throw new Error("Failed to fetch users");
+    throw await parseResponseError(response, "Failed to fetch users");
   }
   return response.json();
 }
@@ -337,7 +360,7 @@ export async function getUser(id) {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
-    throw new Error(`Failed to fetch user with ID ${id}`);
+    throw await parseResponseError(response, `Failed to fetch user with ID ${id}`);
   }
   return response.json();
 }
@@ -351,8 +374,7 @@ export async function createUser(user) {
     body: JSON.stringify(user),
   });
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to create user");
+    throw await parseResponseError(response, "Failed to create user");
   }
   return response.json();
 }
@@ -366,8 +388,7 @@ export async function updateUser(id, userData) {
     body: JSON.stringify(userData),
   });
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to update user");
+    throw await parseResponseError(response, "Failed to update user");
   }
   return response.json();
 }
@@ -378,7 +399,7 @@ export async function deleteUser(id) {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
-    throw new Error("Failed to delete user");
+    throw await parseResponseError(response, "Failed to delete user");
   }
   return response.json();
 }
@@ -389,7 +410,7 @@ export async function approveUser(id) {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
-    throw new Error("Failed to approve user");
+    throw await parseResponseError(response, "Failed to approve user");
   }
   return response.json();
 }
@@ -400,7 +421,7 @@ export async function rejectUser(id) {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
-    throw new Error("Failed to reject user");
+    throw await parseResponseError(response, "Failed to reject user");
   }
   return response.json();
 }
@@ -411,7 +432,7 @@ export async function activateUser(id) {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
-    throw new Error("Failed to activate user");
+    throw await parseResponseError(response, "Failed to activate user");
   }
   return response.json();
 }
@@ -422,7 +443,7 @@ export async function deactivateUser(id) {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
-    throw new Error("Failed to deactivate user");
+    throw await parseResponseError(response, "Failed to deactivate user");
   }
   return response.json();
 }
@@ -436,7 +457,7 @@ export async function changeUserRole(id, role) {
     body: JSON.stringify({ role }),
   });
   if (!response.ok) {
-    throw new Error("Failed to change role");
+    throw await parseResponseError(response, "Failed to change role");
   }
   return response.json();
 }
@@ -450,7 +471,7 @@ export async function resetUserPassword(id, newPassword) {
     body: JSON.stringify({ new_password: newPassword }),
   });
   if (!response.ok) {
-    throw new Error("Failed to reset password");
+    throw await parseResponseError(response, "Failed to reset password");
   }
   return response.json();
 }
@@ -471,7 +492,7 @@ export async function getSystemAuditLogs(params = {}) {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
-    throw new Error("Failed to fetch audit logs");
+    throw await parseResponseError(response, "Failed to fetch audit logs");
   }
   return response.json();
 }
