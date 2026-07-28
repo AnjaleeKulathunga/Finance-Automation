@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { Button, Tooltip } from "@mui/material";
+import {
+  ExitToApp as LogoutIcon,
+  Person as PersonIcon,
+} from "@mui/icons-material";
 import {
   getUsers,
   createUser,
@@ -247,16 +252,53 @@ export default function AdminLayout() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col overflow-hidden bg-gray-50">
-        <header className="bg-white shadow-sm border-b border-gray-200 px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900 capitalize">
-            {activeTab.replace("-", " ")} Panel
-          </h1>
-          <div className="flex items-center space-x-4">
-            <span className="text-sm font-medium text-gray-600">Welcome, {currentUser?.full_name}</span>
-            <span className="bg-[#7AB648]/20 text-[#6AA038] text-xs px-2.5 py-1 rounded-full font-bold border border-[#7AB648]/30">
-              {currentUser?.role}
-            </span>
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-gray-50">
+        <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 px-4 py-3 shadow-sm backdrop-blur md:px-8">
+          <div className="relative flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <img src="/logo.png" alt="SLT Mobitel Logo" className="h-9 object-contain lg:hidden" />
+              <div className="min-w-0 text-left md:absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:text-center">
+                <h2 className="truncate text-lg font-black capitalize text-[#082f49] md:text-2xl">
+                  {activeTab.replace("-", " ")} Panel
+                </h2>
+                <p className="hidden text-sm font-bold text-slate-500 sm:block">
+                  Welcome, {currentUser?.full_name}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="hidden items-center rounded-lg border border-slate-200 bg-white p-2 shadow-[0_8px_20px_rgba(15,23,42,0.06)] md:flex"
+                aria-label="Admin profile"
+                onClick={() => setActiveTab("profile")}
+              >
+                <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#082f49] text-white shadow-sm">
+                  <PersonIcon sx={{ fontSize: 22 }} />
+                </div>
+              </button>
+              <Tooltip title="Sign out">
+                <Button
+                  onClick={handleLogout}
+                  variant="contained"
+                  startIcon={<LogoutIcon />}
+                  sx={{
+                    minWidth: { xs: 42, sm: "auto" },
+                    px: { xs: 1.2, sm: 2.4 },
+                    height: 42,
+                    backgroundColor: "#E1251B",
+                    textTransform: "none",
+                    fontWeight: 900,
+                    borderRadius: 1.5,
+                    boxShadow: "0 10px 18px rgba(225,37,27,0.2)",
+                    "&:hover": { backgroundColor: "#C11812" },
+                  }}
+                >
+                  <span className="hidden sm:inline">Sign Out</span>
+                </Button>
+              </Tooltip>
+            </div>
           </div>
         </header>
 
@@ -648,38 +690,48 @@ export default function AdminLayout() {
 
           {/* ADMIN PROFILE TAB */}
           {activeTab === "profile" && (
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 max-w-2xl">
-              <h3 className="text-xl font-bold text-gray-900 mb-6">Administrator Settings Profile</h3>
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 py-2 border-b border-gray-100 text-sm">
-                  <span className="font-semibold text-gray-500">Name</span>
-                  <span className="col-span-2 text-gray-800">{currentUser?.full_name}</span>
+            <div className="flex min-h-[calc(100vh-9rem)] items-center justify-center px-4 py-8">
+              <div className="w-full max-w-[560px] overflow-hidden rounded-[32px] border border-[#dce5ee] bg-white shadow-[0_26px_62px_rgba(8,47,73,0.16)]">
+                <div className="relative h-44 overflow-hidden bg-[linear-gradient(135deg,#082f49_0%,#0f5368_58%,#0f766e_100%)]">
+                  <div className="absolute -left-16 -top-20 h-56 w-56 rounded-full bg-cyan-300/20" />
+                  <div className="absolute -right-20 top-4 h-64 w-64 rounded-full bg-emerald-300/16" />
+                  <div className="absolute left-1/2 top-12 grid h-40 w-40 -translate-x-1/2 place-items-center rounded-full border-[12px] border-white bg-[#dff6fb] shadow-[0_18px_35px_rgba(8,47,73,0.24)]">
+                    <PersonIcon sx={{ fontSize: 72, color: "#082f49" }} />
+                  </div>
                 </div>
-                <div className="grid grid-cols-3 py-2 border-b border-gray-100 text-sm">
-                  <span className="font-semibold text-gray-500">Email</span>
-                  <span className="col-span-2 text-gray-800">{currentUser?.email}</span>
-                </div>
-                <div className="grid grid-cols-3 py-2 border-b border-gray-100 text-sm">
-                  <span className="font-semibold text-gray-500">Privilege Role</span>
-                  <span className="col-span-2 text-gray-800">
-                    <span className="bg-purple-100 text-purple-700 text-xs px-2.5 py-0.5 rounded-full font-bold">
-                      {currentUser?.role}
+
+                <div className="px-6 pb-8 pt-20 text-center md:px-9">
+                  <h3 className="text-3xl font-black uppercase leading-tight text-[#082f49] md:text-4xl">
+                    {currentUser?.full_name || "System Administrator"}
+                  </h3>
+
+                  <div className="mt-3 flex items-center justify-center gap-2 text-slate-500">
+                    <span className="text-lg" aria-hidden="true">✉</span>
+                    <span className="break-all text-sm font-bold">
+                      {currentUser?.email || "No email available"}
                     </span>
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 py-2 border-b border-gray-100 text-sm">
-                  <span className="font-semibold text-gray-500">Status</span>
-                  <span className="col-span-2 text-gray-800">
-                    <span className="bg-green-100 text-green-700 text-xs px-2.5 py-0.5 rounded-full font-bold">
-                      {currentUser?.status}
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-black text-emerald-700">
+                      {currentUser?.status || "Approved"}
                     </span>
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 py-2 border-b border-gray-100 text-sm">
-                  <span className="font-semibold text-gray-500">Created At</span>
-                  <span className="col-span-2 text-gray-800">
-                    {new Date(currentUser?.created_at).toLocaleString()}
-                  </span>
+                    <span className="rounded-full bg-teal-100 px-3 py-1 text-sm font-black text-teal-700">
+                      {currentUser?.role || "Admin"}
+                    </span>
+                  </div>
+
+                  <p className="mx-auto mt-5 max-w-[390px] text-sm font-bold leading-7 text-slate-500">
+                    Account details for Finance Revenue Automation. Use this profile to confirm your administrator account and access status.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("dashboard")}
+                    className="mt-8 min-w-[190px] rounded-full border border-[#082f49] px-6 py-2.5 text-sm font-black text-[#082f49] transition hover:border-[#0f5368] hover:bg-sky-100"
+                  >
+                    View Dashboard
+                  </button>
                 </div>
               </div>
             </div>
