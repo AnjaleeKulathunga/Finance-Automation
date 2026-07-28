@@ -55,6 +55,35 @@ def _default_file_info(file_type: str) -> dict:
     }
 
 
+def _restore_session_files(session_id: str) -> dict | None:
+    session_dir = settings.UPLOAD_DIR / session_id
+    if not session_dir.exists() or not session_dir.is_dir():
+        return None
+
+    file_paths = {}
+    for label in ["tb_current", "tb_previous", "budget", "mapping"]:
+        matches = sorted(session_dir.glob(f"{label}__*"))
+        if matches:
+            file_paths[label] = str(matches[-1])
+
+    for label in ["budget", "mapping"]:
+        if label not in file_paths:
+            default_path = _default_file_path(label)
+            if default_path.exists():
+                file_paths[label] = str(default_path)
+
+    if "tb_current" not in file_paths or "tb_previous" not in file_paths:
+        return None
+
+    uploaded_files_store[session_id] = file_paths
+    logger.info(f"Restored upload session {session_id} from disk")
+    return file_paths
+
+
+def _get_session_files(session_id: str) -> dict | None:
+    return uploaded_files_store.get(session_id) or _restore_session_files(session_id)
+
+
 @router.post("/upload")
 async def upload_files(
     request: Request,
@@ -228,13 +257,34 @@ async def generate_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    if not session_id or session_id not in uploaded_files_store:
+    if not session_id:
         raise HTTPException(
             status_code=400, detail="Invalid or missing session_id. Upload files first."
         )
 
     start_time = time.time()
-    file_paths = uploaded_files_store[session_id]
+    file_paths = _get_session_files(session_id)
+    if not file_paths:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Upload session expired or files are not available on this server. "
+                "Please upload the files again and generate the report."
+            ),
+        )
+    missing_labels = [
+        label
+        for label in ["tb_current", "tb_previous", "budget", "mapping"]
+        if label not in file_paths or not Path(file_paths[label]).exists()
+    ]
+    if missing_labels:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Upload session is incomplete. Missing files: "
+                f"{', '.join(missing_labels)}. Please upload the files again."
+            ),
+        )
     logger.info(f"Starting report generation for session {session_id}")
 
     try:
@@ -375,13 +425,21 @@ async def generate_unmapped_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    if not session_id or session_id not in uploaded_files_store:
+    if not session_id:
         raise HTTPException(
             status_code=400,
             detail="Invalid or missing session_id. Generate report first.",
         )
 
-    file_paths = uploaded_files_store[session_id]
+    file_paths = _get_session_files(session_id)
+    if not file_paths:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Upload session expired or files are not available on this server. "
+                "Please upload the files and generate the report again."
+            ),
+        )
     cy_unmapped = file_paths.get("cy_unmapped_df")
     py_unmapped = file_paths.get("py_unmapped_df")
     report_month = file_paths.get("report_month", "")
