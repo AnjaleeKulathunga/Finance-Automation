@@ -54,8 +54,8 @@ const theme = createTheme({
 });
 
 const FILE_CONFIGS = [
-  { key: "tb_current", label: "Current Year Trial Balance", accept: ".xlsx,.xls", color: "#1B6B93" },
-  { key: "tb_previous", label: "Previous Year Trial Balance", accept: ".xlsx,.xls", color: "#4A90B8" },
+  { key: "tb_current", label: "Current Year Trial Balance", accept: ".xlsx,.xls,.txt,text/plain", color: "#1B6B93" },
+  { key: "tb_previous", label: "Previous Year Trial Balance", accept: ".xlsx,.xls,.txt,text/plain", color: "#4A90B8" },
   { key: "budget", label: "Revenue Budget Workbook", accept: ".xlsx,.xls", color: "#7AB648" },
   { key: "mapping", label: "Revenue Mapping Workbook", accept: ".xlsx,.xls", color: "#E8A838" },
 ];
