@@ -1026,7 +1026,7 @@ async def generate_unmapped_report(
                 ws.append([])
 
                 if issue_name == "International BL Filter":
-                    bl_list = ", ".join(sorted(type_df["business_line"].unique())[:8])
+                    bl_list = ", ".join(str(x) for x in sorted(type_df["business_line"].unique())[:8])
                     ws.append(
                         [
                             f"PROBLEM: The International catch-all rules (BL=81-93) are also matching "
