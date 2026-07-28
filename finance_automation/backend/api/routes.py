@@ -4,11 +4,11 @@ import time
 import uuid
 import shutil
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends, Request, BackgroundTasks
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from app.database.connection import get_db
-from app.auth.jwt_handler import get_current_active_user
+from app.database.connection import get_db, SessionLocal
+from app.auth.jwt_handler import get_admin_user, get_current_active_user
 from app.models.user_and_log import User
 from app.services.audit_logger import log_audit
 from utils.logger import logger
@@ -34,6 +34,209 @@ from services.ppt_generator import generate_pptx
 router = APIRouter(prefix="/api", tags=["finance"])
 
 uploaded_files_store: dict = {}
+report_jobs: dict = {}
+
+
+DEFAULT_FILES_DIR = settings.TEMPLATE_DIR / "defaults"
+DEFAULT_FILES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _default_file_path(file_type: str) -> Path:
+    if file_type not in {"budget", "mapping"}:
+        raise HTTPException(status_code=400, detail="file_type must be 'budget' or 'mapping'.")
+    matches = sorted(DEFAULT_FILES_DIR.glob(f"default_{file_type}.*"))
+    return matches[-1] if matches else DEFAULT_FILES_DIR / f"default_{file_type}.xlsx"
+
+
+def _default_file_info(file_type: str) -> dict:
+    path = _default_file_path(file_type)
+    return {
+        f"default_{file_type}_active": path.exists(),
+        f"default_{file_type}_filename": path.name if path.exists() else None,
+    }
+
+
+def _restore_session_files(session_id: str) -> dict | None:
+    session_dir = settings.UPLOAD_DIR / session_id
+    if not session_dir.exists() or not session_dir.is_dir():
+        return None
+
+    file_paths = {}
+    for label in ["tb_current", "tb_previous", "budget", "mapping"]:
+        matches = sorted(session_dir.glob(f"{label}__*"))
+        if matches:
+            file_paths[label] = str(matches[-1])
+
+    for label in ["budget", "mapping"]:
+        if label not in file_paths:
+            default_path = _default_file_path(label)
+            if default_path.exists():
+                file_paths[label] = str(default_path)
+
+    if "tb_current" not in file_paths or "tb_previous" not in file_paths:
+        return None
+
+    uploaded_files_store[session_id] = file_paths
+    logger.info(f"Restored upload session {session_id} from disk")
+    return file_paths
+
+
+def _get_session_files(session_id: str) -> dict | None:
+    return uploaded_files_store.get(session_id) or _restore_session_files(session_id)
+
+
+def _validate_complete_session(session_id: str) -> dict:
+    file_paths = _get_session_files(session_id)
+    if not file_paths:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Upload session expired or files are not available on this server. "
+                "Please upload the files again and generate the report."
+            ),
+        )
+
+    missing_labels = [
+        label
+        for label in ["tb_current", "tb_previous", "budget", "mapping"]
+        if label not in file_paths or not Path(file_paths[label]).exists()
+    ]
+    if missing_labels:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Upload session is incomplete. Missing files: "
+                f"{', '.join(missing_labels)}. Please upload the files again."
+            ),
+        )
+
+    return file_paths
+
+
+def _build_report_for_session(
+    session_id: str,
+    db: Session,
+    user_id: int,
+    user_name: str,
+) -> ReportResponse:
+    start_time = time.time()
+    file_paths = _validate_complete_session(session_id)
+    logger.info(f"Starting report generation for session {session_id}")
+
+    report_month, report_year = detect_tb_month_and_year(file_paths["tb_current"])
+    if not report_month or not report_year:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not detect month and year from Trial Balance filename. "
+            "Please ensure the filename contains a month abbreviation and year.",
+        )
+    logger.info(f"Report period: {report_month} {report_year}")
+
+    logger.info("Loading mapping rules...")
+    mapping_engine = MappingEngine()
+    mapping_engine.load_mapping(file_paths["mapping"])
+
+    logger.info("Reading current year Trial Balance...")
+    cy_tb_df = read_current_year_tb(file_paths["tb_current"])
+    if cy_tb_df.empty:
+        raise HTTPException(
+            status_code=400,
+            detail="Current Year Trial Balance contains no valid data rows.",
+        )
+
+    logger.info("Mapping current year TB rows...")
+    cy_tb_df = mapping_engine.map_tb_rows(cy_tb_df)
+    mapped_count = (cy_tb_df["revenue_category"] != "").sum()
+    unmapped_count = (cy_tb_df["revenue_category"] == "").sum()
+    cy_unmapped_df = mapping_engine.get_unmapped_report()
+    logger.info(f"CY TB: {mapped_count} mapped, {unmapped_count} unmapped")
+
+    logger.info("Reading previous year Trial Balance...")
+    py_tb_df = read_previous_year_tb(file_paths["tb_previous"])
+    if py_tb_df.empty:
+        logger.warning("Previous Year TB is empty, proceeding without PY data")
+        import pandas as pd
+
+        py_tb_df = pd.DataFrame(columns=cy_tb_df.columns)
+
+    logger.info("Mapping previous year TB rows...")
+    py_tb_df = mapping_engine.map_tb_rows(py_tb_df)
+    py_unmapped_df = mapping_engine.get_unmapped_report()
+
+    file_paths["cy_unmapped_df"] = cy_unmapped_df
+    file_paths["py_unmapped_df"] = py_unmapped_df
+    file_paths["report_month"] = report_month
+    file_paths["report_year"] = report_year
+
+    logger.info("Processing current year TB data...")
+    cy_tb_data = process_trial_balance(cy_tb_df)
+
+    logger.info("Processing previous year TB data...")
+    py_tb_data = process_trial_balance(py_tb_df)
+
+    logger.info("Loading budget data...")
+    budget_proc = BudgetProcessor()
+    budget_proc.load_budget(file_paths["budget"], report_month, report_year)
+
+    logger.info("Calculating revenue...")
+    revenue_results = calculate_revenue(cy_tb_data, py_tb_data, budget_proc)
+
+    logger.info("Generating PowerPoint presentation...")
+    ppt_path = generate_pptx(
+        revenue_results,
+        report_month,
+        report_year,
+        str(settings.OUTPUT_DIR),
+    )
+
+    elapsed = round(time.time() - start_time, 2)
+    filename = Path(ppt_path).name
+
+    logger.info(f"Report generated successfully in {elapsed}s: {filename}")
+
+    log_audit(
+        db=db,
+        action="Report Generation",
+        module="Finance",
+        description=f"Generated PowerPoint report. Filename: {filename}, Month: {report_month}, Year: {report_year}, Mapped: {mapped_count}, Unmapped: {unmapped_count}",
+        user_id=user_id,
+        user_name=user_name,
+    )
+
+    return ReportResponse(
+        status="success",
+        filename=filename,
+        unmapped_count=unmapped_count,
+        total_mapped=mapped_count,
+        processing_time_seconds=elapsed,
+        report_month=report_month,
+        report_year=report_year,
+        message=f"Report generated for {report_month} {report_year}. "
+        f"{mapped_count} records mapped, {unmapped_count} unmapped.",
+    )
+
+
+def _run_report_job(session_id: str, user_id: int, user_name: str):
+    db = SessionLocal()
+    try:
+        result = _build_report_for_session(session_id, db, user_id, user_name)
+        report_jobs[session_id] = result.model_dump()
+    except HTTPException as e:
+        detail = e.detail
+        if isinstance(detail, dict) and "errors" in detail:
+            message = ", ".join(detail["errors"])
+        else:
+            message = str(detail)
+        logger.error(f"Report job failed for session {session_id}: {message}")
+        report_jobs[session_id] = {"status": "error", "message": message}
+    except Exception as e:
+        logger.exception(f"Report job failed for session {session_id}: {e}")
+        report_jobs[session_id] = {
+            "status": "error",
+            "message": f"Report generation failed: {str(e)}",
+        }
+    finally:
+        db.close()
 
 
 @router.post("/upload")
@@ -41,8 +244,8 @@ async def upload_files(
     request: Request,
     tb_current: UploadFile = File(...),
     tb_previous: UploadFile = File(...),
-    budget: UploadFile = File(...),
-    mapping: UploadFile = File(...),
+    budget: UploadFile | None = File(None),
+    mapping: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -56,9 +259,11 @@ async def upload_files(
     files = {
         "tb_current": tb_current,
         "tb_previous": tb_previous,
-        "budget": budget,
-        "mapping": mapping,
     }
+    if budget is not None:
+        files["budget"] = budget
+    if mapping is not None:
+        files["mapping"] = mapping
 
     for label, upload_file in files.items():
         ext = Path(upload_file.filename).suffix.lower()
@@ -83,6 +288,13 @@ async def upload_files(
 
         file_paths[label] = str(save_path)
         logger.info(f"Saved {label}: {upload_file.filename} -> {save_path}")
+
+    for label in ["budget", "mapping"]:
+        if label not in file_paths:
+            default_path = _default_file_path(label)
+            if default_path.exists():
+                file_paths[label] = str(default_path)
+                logger.info(f"Using default {label} workbook: {default_path}")
 
     validation = validate_uploaded_files(
         file_paths.get("tb_current"),
@@ -128,130 +340,123 @@ async def upload_files(
         "files": {
             "tb_current": tb_current.filename,
             "tb_previous": tb_previous.filename,
-            "budget": budget.filename,
-            "mapping": mapping.filename,
+            "budget": budget.filename if budget else Path(file_paths["budget"]).name,
+            "mapping": mapping.filename if mapping else Path(file_paths["mapping"]).name,
         },
+        "warnings": validation.warnings,
+    }
+
+
+@router.get("/admin/config")
+async def get_admin_config(current_user: User = Depends(get_current_active_user)):
+    return {
+        **_default_file_info("budget"),
+        **_default_file_info("mapping"),
+    }
+
+
+@router.post("/admin/upload-default")
+async def upload_default_file(
+    request: Request,
+    file_type: str = Query(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    if file_type not in {"budget", "mapping"}:
+        raise HTTPException(status_code=400, detail="file_type must be 'budget' or 'mapping'.")
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in {".xlsx", ".xls"}:
+        raise HTTPException(status_code=400, detail="Default files must be Excel workbooks.")
+
+    target_path = DEFAULT_FILES_DIR / f"default_{file_type}{ext}"
+    for old_path in DEFAULT_FILES_DIR.glob(f"default_{file_type}.*"):
+        old_path.unlink(missing_ok=True)
+
+    with open(target_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+
+    validation = (
+        validate_budget_workbook(str(target_path))
+        if file_type == "budget"
+        else validate_mapping_workbook(str(target_path))
+    )
+    if not validation.is_valid:
+        target_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail={"errors": validation.errors})
+
+    log_audit(
+        db=db,
+        action="Default File Upload",
+        module="Finance Admin",
+        description=f"Uploaded default {file_type} workbook: {file.filename}",
+        user_id=admin.id,
+        user_name=admin.full_name,
+        request=request,
+    )
+
+    return {
+        "status": "success",
+        "file_type": file_type,
+        "filename": target_path.name,
         "warnings": validation.warnings,
     }
 
 
 @router.post("/generate")
 async def generate_report(
-    request: Request,
+    background_tasks: BackgroundTasks,
     session_id: str = "",
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    if not session_id or session_id not in uploaded_files_store:
+    if not session_id:
         raise HTTPException(
             status_code=400, detail="Invalid or missing session_id. Upload files first."
         )
 
-    start_time = time.time()
-    file_paths = uploaded_files_store[session_id]
-    logger.info(f"Starting report generation for session {session_id}")
+    _validate_complete_session(session_id)
+    existing_job = report_jobs.get(session_id)
+    if existing_job:
+        return existing_job
 
-    try:
-        report_month, report_year = detect_tb_month_and_year(file_paths["tb_current"])
-        if not report_month or not report_year:
-            raise HTTPException(
-                status_code=400,
-                detail="Could not detect month and year from Trial Balance filename. "
-                "Please ensure the filename contains a month abbreviation and year.",
-            )
-        logger.info(f"Report period: {report_month} {report_year}")
+    report_jobs[session_id] = {
+        "status": "processing",
+        "message": "Report generation started.",
+    }
+    background_tasks.add_task(
+        _run_report_job,
+        session_id,
+        current_user.id,
+        current_user.full_name,
+    )
 
-        logger.info("Loading mapping rules...")
-        mapping_engine = MappingEngine()
-        mapping_engine.load_mapping(file_paths["mapping"])
+    return report_jobs[session_id]
 
-        logger.info("Reading current year Trial Balance...")
-        cy_tb_df = read_current_year_tb(file_paths["tb_current"])
-        if cy_tb_df.empty:
-            raise HTTPException(
-                status_code=400,
-                detail="Current Year Trial Balance contains no valid data rows.",
-            )
 
-        logger.info("Mapping current year TB rows...")
-        cy_tb_df = mapping_engine.map_tb_rows(cy_tb_df)
-        mapped_count = (cy_tb_df["revenue_category"] != "").sum()
-        unmapped_count = (cy_tb_df["revenue_category"] == "").sum()
-        cy_unmapped_df = mapping_engine.get_unmapped_report()
-        logger.info(f"CY TB: {mapped_count} mapped, {unmapped_count} unmapped")
+@router.get("/report-status/{session_id}")
+async def get_report_status(
+    session_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    job = report_jobs.get(session_id)
+    if job:
+        return job
 
-        logger.info("Reading previous year Trial Balance...")
-        py_tb_df = read_previous_year_tb(file_paths["tb_previous"])
-        if py_tb_df.empty:
-            logger.warning("Previous Year TB is empty, proceeding without PY data")
-            import pandas as pd
+    generated_files = sorted(settings.OUTPUT_DIR.glob("Revenue_*.pptx"))
+    if generated_files:
+        latest = generated_files[-1]
+        return {
+            "status": "success",
+            "filename": latest.name,
+            "message": "Report generated successfully.",
+        }
 
-            py_tb_df = pd.DataFrame(columns=cy_tb_df.columns)
-
-        logger.info("Mapping previous year TB rows...")
-        py_tb_df = mapping_engine.map_tb_rows(py_tb_df)
-        py_unmapped_df = mapping_engine.get_unmapped_report()
-
-        file_paths["cy_unmapped_df"] = cy_unmapped_df
-        file_paths["py_unmapped_df"] = py_unmapped_df
-        file_paths["report_month"] = report_month
-        file_paths["report_year"] = report_year
-
-        logger.info("Processing current year TB data...")
-        cy_tb_data = process_trial_balance(cy_tb_df)
-
-        logger.info("Processing previous year TB data...")
-        py_tb_data = process_trial_balance(py_tb_df)
-
-        logger.info("Loading budget data...")
-        budget_proc = BudgetProcessor()
-        budget_proc.load_budget(file_paths["budget"], report_month, report_year)
-
-        logger.info("Calculating revenue...")
-        revenue_results = calculate_revenue(cy_tb_data, py_tb_data, budget_proc)
-
-        logger.info("Generating PowerPoint presentation...")
-        ppt_path = generate_pptx(
-            revenue_results,
-            report_month,
-            report_year,
-            str(settings.OUTPUT_DIR),
-        )
-
-        elapsed = round(time.time() - start_time, 2)
-        filename = Path(ppt_path).name
-
-        logger.info(f"Report generated successfully in {elapsed}s: {filename}")
-
-        log_audit(
-            db=db,
-            action="Report Generation",
-            module="Finance",
-            description=f"Generated PowerPoint report. Filename: {filename}, Month: {report_month}, Year: {report_year}, Mapped: {mapped_count}, Unmapped: {unmapped_count}",
-            user_id=current_user.id,
-            user_name=current_user.full_name,
-            request=request
-        )
-
-        return ReportResponse(
-            status="success",
-            filename=filename,
-            unmapped_count=unmapped_count,
-            total_mapped=mapped_count,
-            processing_time_seconds=elapsed,
-            report_month=report_month,
-            report_year=report_year,
-            message=f"Report generated for {report_month} {report_year}. "
-            f"{mapped_count} records mapped, {unmapped_count} unmapped.",
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Error generating report: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Report generation failed: {str(e)}"
-        )
+    raise HTTPException(
+        status_code=404,
+        detail="Report generation status not found. Please generate the report again.",
+    )
 
 
 @router.get("/download/{filename}")
@@ -289,13 +494,21 @@ async def generate_unmapped_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    if not session_id or session_id not in uploaded_files_store:
+    if not session_id:
         raise HTTPException(
             status_code=400,
             detail="Invalid or missing session_id. Generate report first.",
         )
 
-    file_paths = uploaded_files_store[session_id]
+    file_paths = _get_session_files(session_id)
+    if not file_paths:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Upload session expired or files are not available on this server. "
+                "Please upload the files and generate the report again."
+            ),
+        )
     cy_unmapped = file_paths.get("cy_unmapped_df")
     py_unmapped = file_paths.get("py_unmapped_df")
     report_month = file_paths.get("report_month", "")

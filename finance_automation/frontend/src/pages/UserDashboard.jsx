@@ -23,7 +23,6 @@ import {
   Download as DownloadIcon,
   Description as FileIcon,
   Delete as DeleteIcon,
-  TableChart as UnmappedIcon,
   ExitToApp as LogoutIcon,
   Dashboard as DashboardIcon,
   CheckCircle as CheckCircleIcon,
@@ -41,6 +40,7 @@ import {
   getAdminConfig,
 } from "../services/api";
 import StatusPanel from "../components/StatusPanel";
+import ReportSummaryActions from "../components/ReportSummaryActions";
 
 const theme = createTheme({
   palette: {
@@ -491,29 +491,15 @@ export default function UserDashboard() {
                   "&:hover": { backgroundColor: "#6AA038" },
                 }}
               >
-                Download PowerPoint
-              </Button>
-            )}
+              Download PowerPoint
+            </Button>
+          )}
 
-            {reportResult && reportResult.unmapped_count > 0 && (
-              <Button
-                variant="contained"
-                size="large"
-                startIcon={<UnmappedIcon />}
-                onClick={handleUnmappedDownload}
-                disabled={unmappedLoading}
-                sx={{
-                backgroundColor: "#E8A838",
-                textTransform: "none",
-                fontWeight: 900,
-                borderRadius: 1.5,
-                px: 4,
-                  "&:hover": { backgroundColor: "#D09830" },
-                }}
-              >
-                {unmappedLoading ? "Generating..." : "Download Unmapped Rows"}
-              </Button>
-            )}
+            <ReportSummaryActions
+              reportResult={reportResult}
+              onDownloadUnmapped={handleUnmappedDownload}
+              unmappedLoading={unmappedLoading}
+            />
 
             {activeStep > 0 && (
               <Button
