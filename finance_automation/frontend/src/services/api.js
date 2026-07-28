@@ -1,4 +1,10 @@
 const API_BASE = process.env.REACT_APP_API_BASE_URL || "/api";
+const EMPTY_ADMIN_CONFIG = {
+  default_mapping_active: false,
+  default_budget_active: false,
+  default_mapping_filename: null,
+  default_budget_filename: null,
+};
 
 async function readApiError(response, fallback) {
   const contentType = response.headers.get("content-type") || "";
@@ -92,6 +98,9 @@ export async function getAdminConfig() {
   const response = await fetch(`${API_BASE}/admin/config`, {
     headers: getAuthHeaders(),
   });
+  if (response.status === 404) {
+    return EMPTY_ADMIN_CONFIG;
+  }
   if (!response.ok) {
     throw new Error(await readApiError(response, "Failed to fetch admin config"));
   }
