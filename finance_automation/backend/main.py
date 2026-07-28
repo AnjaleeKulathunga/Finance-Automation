@@ -60,6 +60,18 @@ async def startup_event():
                 )
                 conn.commit()
                 logger.info("Added 'auth_provider' column to users table")
+            if "microsoft_id" not in columns:
+                conn.execute(
+                    text("ALTER TABLE users ADD COLUMN microsoft_id VARCHAR")
+                )
+                conn.commit()
+                logger.info("Added 'microsoft_id' column to users table")
+            if "service_number" not in columns:
+                conn.execute(
+                    text("ALTER TABLE users ADD COLUMN service_number VARCHAR")
+                )
+                conn.commit()
+                logger.info("Added 'service_number' column to users table")
 
         Base.metadata.create_all(bind=engine)
 

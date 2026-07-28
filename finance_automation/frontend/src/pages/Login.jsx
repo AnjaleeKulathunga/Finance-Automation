@@ -8,12 +8,13 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [localLoading, setLocalLoading] = useState(false);
+  const [microsoftLoading, setMicrosoftLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setLocalLoading(true);
     setError(null);
     try {
       const user = await login(email, password);
@@ -25,18 +26,18 @@ export default function Login() {
     } catch (err) {
       setError(err.message || "Invalid credentials");
     } finally {
-      setLoading(false);
+      setLocalLoading(false);
     }
   };
 
   const handleMicrosoftLogin = async () => {
     setError(null);
-    setLoading(true);
+    setMicrosoftLoading(true);
     try {
       await loginWithMicrosoft();
     } catch (err) {
       setError(err.message || "Microsoft sign-in failed. Please try again.");
-      setLoading(false);
+      setMicrosoftLoading(false);
     }
   };
 
@@ -65,7 +66,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={handleMicrosoftLogin}
-                  disabled={loading}
+                  disabled={microsoftLoading || localLoading}
                   className="w-full h-[50px] rounded-xl border-2 border-slate-200 bg-white text-slate-700 text-sm font-extrabold flex items-center justify-center gap-3 transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-[0.99] disabled:opacity-60"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
@@ -74,7 +75,7 @@ export default function Login() {
                     <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
                     <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
                   </svg>
-                  Sign in with Microsoft
+                  {microsoftLoading ? "Redirecting..." : "Sign in with Microsoft"}
                 </button>
 
                 <div className="flex items-center gap-4 my-6">
@@ -131,10 +132,10 @@ export default function Login() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={localLoading || microsoftLoading}
                 className="w-full h-[50px] rounded-xl bg-gradient-to-r from-sky-500 via-blue-600 to-emerald-500 text-white text-sm font-extrabold shadow-[0_12px_22px_rgba(14,126,216,0.24)] transition-all hover:brightness-105 active:scale-[0.99] disabled:opacity-60"
               >
-                {loading ? "Signing in..." : "Sign In"}
+                {localLoading ? "Signing in..." : "Sign In"}
               </button>
             </form>
 

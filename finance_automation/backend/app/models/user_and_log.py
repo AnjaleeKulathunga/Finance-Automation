@@ -10,7 +10,9 @@ class User(Base):
     full_name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False, default="")
-    auth_provider = Column(String, default="local")  # "local" or "azure_ad"
+    auth_provider = Column(String, default="local")  # "local" or "microsoft"
+    microsoft_id = Column(String, nullable=True, unique=True, index=True)   # Graph object ID
+    service_number = Column(String, nullable=True)   # UPN prefix e.g. "012345"
     role = Column(String, default="User")  # "Admin" or "User"
     status = Column(String, default="Pending")  # "Pending", "Approved", "Rejected"
     is_active = Column(Boolean, default=True)

@@ -1,14 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { PublicClientApplication } from "@azure/msal-browser";
-import { authLogin, authRegister, authLogout, authMe, authAzureLogin } from "../services/api";
-import { msalConfig, azureLoginScopes, isAzureAdConfigured } from "../config/azureConfig";
+import {
+  authLogin,
+  authRegister,
+  authLogout,
+  authMe,
+  getMicrosoftLoginUrl,
+} from "../services/api";
+
 
 const AuthContext = createContext(null);
-
-let msalInstance = null;
-if (isAzureAdConfigured()) {
-  msalInstance = new PublicClientApplication(msalConfig);
-}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -34,40 +34,7 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   useEffect(() => {
-    const initMsal = async () => {
-      if (msalInstance) {
-        await msalInstance.initialize();
-        msalInstance
-          .handleRedirectPromise()
-          .then(async (response) => {
-            if (response) {
-              const idToken = response.idToken;
-              try {
-                setLoading(true);
-                const data = await authAzureLogin(idToken);
-                localStorage.setItem("token", data.access_token);
-                setToken(data.access_token);
-                setUser(data.user);
-                return data.user;
-              } catch (err) {
-                console.error("Azure login failed:", err);
-                throw err;
-              } finally {
-                setLoading(false);
-              }
-            }
-          })
-          .catch((err) => {
-            console.error("MSAL redirect handle error:", err);
-          })
-          .finally(() => {
-            fetchUser();
-          });
-      } else {
-        fetchUser();
-      }
-    };
-    initMsal();
+    fetchUser();
   }, []);
 
   const login = async (email, password) => {
@@ -85,12 +52,25 @@ export function AuthProvider({ children }) {
     }
   };
 
+  /**
+   * Microsoft PKCE SSO — Option B
+   * Fetches the auth URL from the backend and redirects the browser.
+   * Microsoft will redirect back to http://localhost:3000/auth/callback?code=&state=
+   * which is handled by <AuthCallback />.
+   */
   const loginWithMicrosoft = async () => {
-    if (!msalInstance) {
-      throw new Error("Azure AD is not configured.");
-    }
-    await msalInstance.initialize();
-    await msalInstance.loginRedirect(azureLoginScopes);
+    const { auth_url } = await getMicrosoftLoginUrl();
+    window.location.href = auth_url;
+  };
+
+  /**
+   * Called by AuthCallback after the backend returns the local JWT.
+   * Stores the token and user in context/localStorage.
+   */
+  const finalizeLogin = (accessToken, userData) => {
+    localStorage.setItem("token", accessToken);
+    setToken(accessToken);
+    setUser(userData);
   };
 
   const register = async (fullName, email, password, confirmPassword, role) => {
@@ -126,10 +106,12 @@ export function AuthProvider({ children }) {
         loading,
         login,
         loginWithMicrosoft,
+        finalizeLogin,
         register,
         logout,
         refreshUser: fetchUser,
-        isAzureAdConfigured: isAzureAdConfigured(),
+        // Always true — SSO is now server-driven, no frontend config needed
+        isAzureAdConfigured: true,
       }}
     >
       {children}

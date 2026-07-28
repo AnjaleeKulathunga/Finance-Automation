@@ -2,6 +2,9 @@ import datetime
 import secrets
 import smtplib
 from email.message import EmailMessage
+from typing import Optional
+
+from pydantic import BaseModel
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
@@ -416,3 +419,268 @@ async def logout(
 @auth_router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_active_user)):
     return current_user
+
+
+# ---------------------------------------------------------------------------
+# Microsoft OAuth 2.0 — Authorization Code Flow with PKCE (Option B)
+# ---------------------------------------------------------------------------
+
+@auth_router.get("/microsoft/login")
+async def microsoft_login():
+    """
+    Step 1 — Generate PKCE pair, encrypt state, return Microsoft auth URL.
+    Frontend redirects the browser to the returned auth_url.
+    """
+    from app.auth.microsoft_sso import (
+        generate_pkce_pair,
+        encrypt_state,
+        build_authorization_url,
+    )
+
+    code_verifier, code_challenge = generate_pkce_pair()
+    encrypted_state = encrypt_state({"code_verifier": code_verifier})
+    auth_url = build_authorization_url(code_challenge, encrypted_state)
+
+    return {"auth_url": auth_url}
+
+
+class MicrosoftFinishRequest(BaseModel):
+    code: str
+    state: str
+
+
+@auth_router.post("/microsoft/finish")
+async def microsoft_finish(
+    body: MicrosoftFinishRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Step 2 — Frontend POSTs { code, state } received from Microsoft redirect.
+    Backend:
+      1. Decrypts state → extracts code_verifier
+      2. Exchanges code for Microsoft access token
+      3. Calls Microsoft Graph /v1.0/me to verify identity
+      4. Checks if user exists. If not, returns sso_status="new_user" with user info.
+      5. If exists, returns local JWT + user info.
+    """
+    from app.auth.microsoft_sso import (
+        decrypt_state,
+        exchange_code_for_token,
+        get_graph_user,
+        extract_service_number,
+    )
+
+    # 1. Decrypt & validate state
+    state_payload = decrypt_state(body.state)
+    code_verifier = state_payload.get("code_verifier")
+
+    if not code_verifier:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Malformed OAuth state — missing code_verifier.",
+        )
+
+    # 2. Exchange authorization code for Microsoft access token
+    token_response = await exchange_code_for_token(body.code, code_verifier)
+    ms_access_token = token_response.get("access_token")
+    if not ms_access_token:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="No access token returned from Microsoft.",
+        )
+
+    # 3. Fetch identity from Microsoft Graph
+    graph_user = await get_graph_user(ms_access_token)
+    microsoft_id = graph_user["microsoft_id"]
+    display_name = graph_user["display_name"]
+    email = (graph_user["mail"] or graph_user["upn"]).lower()
+    upn = graph_user["upn"]
+    service_number = extract_service_number(upn)
+
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Microsoft account has no email address.",
+        )
+
+    # 4. Check if user exists
+    user = (
+        db.query(User).filter(User.microsoft_id == microsoft_id).first()
+        if microsoft_id
+        else None
+    )
+    if not user:
+        user = db.query(User).filter(User.email == email).first()
+
+    if not user:
+        is_first = db.query(User).count() == 0
+        if is_first:
+            # Auto-approve the very first user as Admin immediately
+            user = User(
+                full_name=display_name or email,
+                email=email,
+                password_hash="",
+                auth_provider="microsoft",
+                microsoft_id=microsoft_id,
+                service_number=service_number,
+                role="Admin",
+                status="Approved",
+                is_active=True,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+            log_audit(
+                db=db,
+                action="Microsoft SSO Registration",
+                module="Auth",
+                description=f"First system user registered as Admin via Microsoft: {user.email}",
+                user_id=user.id,
+                user_name=user.full_name,
+                request=request,
+            )
+        else:
+            # If not first user, return new_user info so frontend can prompt for role selection
+            return {
+                "access_token": "",
+                "token_type": "bearer",
+                "sso_status": "new_user",
+                "user": {
+                    "microsoft_id": microsoft_id,
+                    "email": email,
+                    "full_name": display_name or email,
+                    "service_number": service_number,
+                }
+            }
+    else:
+        # Update microsoft_id and service_number if missing
+        changed = False
+        if not user.microsoft_id and microsoft_id:
+            user.microsoft_id = microsoft_id
+            changed = True
+        if not user.service_number and service_number:
+            user.service_number = service_number
+            changed = True
+        if user.auth_provider == "local" and not user.password_hash:
+            user.auth_provider = "microsoft"
+            changed = True
+        if changed:
+            db.commit()
+            db.refresh(user)
+
+    # 5. Check approval status
+    if user.status == "Pending":
+        log_audit(
+            db=db,
+            action="Microsoft SSO Login — Pending",
+            module="Auth",
+            description=f"SSO login blocked (Pending). Email: {user.email}",
+            user_id=user.id,
+            user_name=user.full_name,
+            request=request,
+        )
+        return {
+            "access_token": "",
+            "token_type": "bearer",
+            "sso_status": "pending",
+            "user": None,
+        }
+
+    if user.status == "Rejected":
+        return {
+            "access_token": "",
+            "token_type": "bearer",
+            "sso_status": "rejected",
+            "user": None,
+        }
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Your account has been deactivated.",
+        )
+
+    # 6. Issue local JWT
+    access_token = create_access_token(data={"sub": user.email})
+
+    log_audit(
+        db=db,
+        action="Microsoft SSO Login",
+        module="Auth",
+        description=f"User logged in via Microsoft SSO. Email: {user.email}",
+        user_id=user.id,
+        user_name=user.full_name,
+        request=request,
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "sso_status": "approved",
+        "user": UserResponse.model_validate(user),
+    }
+
+
+class MicrosoftRegisterRequest(BaseModel):
+    microsoft_id: str
+    email: str
+    full_name: str
+    service_number: str
+    role: str
+
+
+@auth_router.post("/microsoft/register")
+async def microsoft_register(
+    body: MicrosoftRegisterRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Step 3 — Register new SSO user with the role selected in the UI.
+    """
+    if body.role not in {"Admin", "User"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid role selected."
+        )
+
+    # Verify if user exists
+    existing = db.query(User).filter(User.email == body.email.lower()).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered."
+        )
+
+    user = User(
+        full_name=body.full_name,
+        email=body.email.lower(),
+        password_hash="",
+        auth_provider="microsoft",
+        microsoft_id=body.microsoft_id,
+        service_number=body.service_number,
+        role=body.role,
+        status="Pending",
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    log_audit(
+        db=db,
+        action="Microsoft SSO Registration",
+        module="Auth",
+        description=(
+            f"New Microsoft SSO user registered. "
+            f"Name: {user.full_name}, Email: {user.email}, "
+            f"ServiceNo: {user.service_number}, Role: {user.role}, Status: {user.status}"
+        ),
+        user_id=user.id,
+        user_name=user.full_name,
+        request=request,
+    )
+
+    return {"status": "success", "message": "Access request submitted successfully."}
