@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     EMAIL_PORT: int = 465
     PASSWORD_RESET_OTP_EXPIRE_MINUTES: int = 10
 
+    AZURE_CLIENT_ID: str = ""
+    AZURE_TENANT_ID: str = ""
+    MICROSOFT_CLIENT_SECRET: str = ""
+    MICROSOFT_REDIRECT_URI: str = "http://localhost:3000/auth/callback"
+    # 32-byte Fernet key for AES-256 state encryption. Generate once with:
+    # python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    STATE_ENCRYPTION_KEY: str = ""
+
     FLEXFIELD_SEGMENTS: dict = {
         "company": 0,
         "cost_center": 1,

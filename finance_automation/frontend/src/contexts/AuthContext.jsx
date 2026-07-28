@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { authLogin, authRegister, authLogout, authMe } from "../services/api";
+import {
+  authLogin,
+  authRegister,
+  authLogout,
+  authMe,
+  getMicrosoftLoginUrl,
+} from "../services/api";
+
 
 const AuthContext = createContext(null);
 
@@ -28,7 +35,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     fetchUser();
-  }, [fetchUser]);
+  }, []);
 
   const login = async (email, password) => {
     setLoading(true);
@@ -43,6 +50,27 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  /**
+   * Microsoft PKCE SSO — Option B
+   * Fetches the auth URL from the backend and redirects the browser.
+   * Microsoft will redirect back to http://localhost:3000/auth/callback?code=&state=
+   * which is handled by <AuthCallback />.
+   */
+  const loginWithMicrosoft = async () => {
+    const { auth_url } = await getMicrosoftLoginUrl();
+    window.location.href = auth_url;
+  };
+
+  /**
+   * Called by AuthCallback after the backend returns the local JWT.
+   * Stores the token and user in context/localStorage.
+   */
+  const finalizeLogin = (accessToken, userData) => {
+    localStorage.setItem("token", accessToken);
+    setToken(accessToken);
+    setUser(userData);
   };
 
   const register = async (fullName, email, password, confirmPassword, role) => {
@@ -71,7 +99,21 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshUser: fetchUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        loading,
+        login,
+        loginWithMicrosoft,
+        finalizeLogin,
+        register,
+        logout,
+        refreshUser: fetchUser,
+        // Always true — SSO is now server-driven, no frontend config needed
+        isAzureAdConfigured: true,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

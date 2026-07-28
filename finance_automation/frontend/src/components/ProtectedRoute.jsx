@@ -18,6 +18,8 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     return <Navigate to="/login" replace />;
   }
 
+  console.log("ProtectedRoute check:", { path: window.location.pathname, role: user?.role, allowedRoles });
+
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/unauthorized" replace />;
   }

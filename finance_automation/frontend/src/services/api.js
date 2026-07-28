@@ -226,6 +226,80 @@ export async function resetForgottenPassword(email, otp, newPassword, confirmPas
   return response.json();
 }
 
+export async function authAzureLogin(idToken) {
+  const response = await fetch(`${API_BASE}/auth/azure-login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ id_token: idToken }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Azure login failed");
+  }
+  return response.json();
+}
+
+// ── Microsoft PKCE SSO ────────────────────────────────────────────────────
+
+/**
+ * Step 1 — Ask backend for the Microsoft authorization URL (with PKCE + encrypted state).
+ * Returns { auth_url: "https://login.microsoftonline.com/..." }
+ */
+export async function getMicrosoftLoginUrl() {
+  const response = await fetch(`${API_BASE}/auth/microsoft/login`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Failed to get Microsoft login URL");
+  }
+  return response.json();
+}
+
+/**
+ * Step 2 — After Microsoft redirects back to /auth/callback?code=&state=,
+ * send code + state to backend to complete the PKCE exchange.
+ * Returns { access_token, token_type, sso_status, user }
+ */
+export async function authMicrosoftFinish(code, state) {
+  const response = await fetch(`${API_BASE}/auth/microsoft/finish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, state }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Microsoft SSO login failed");
+  }
+  return response.json();
+}
+
+/**
+ * Step 3 — Registers new SSO user with the role selected in the UI.
+ * Returns { status, message }
+ */
+export async function authMicrosoftRegister(microsoftId, email, fullName, serviceNumber, role) {
+  const response = await fetch(`${API_BASE}/auth/microsoft/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      microsoft_id: microsoftId,
+      email,
+      full_name: fullName,
+      service_number: serviceNumber,
+      role,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Microsoft SSO registration failed");
+  }
+  return response.json();
+}
+
 export async function authLogout() {
   const response = await fetch(`${API_BASE}/auth/logout`, {
     method: "POST",
