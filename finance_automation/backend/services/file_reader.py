@@ -29,6 +29,7 @@ def detect_header_row(ws, max_scan: int = 30) -> int:
 
 def detect_tb_month_and_year(tb_path: str) -> Tuple[str, int]:
     filename = Path(tb_path).stem
+
     month_map = {
         "jan": "January",
         "feb": "February",
@@ -48,6 +49,9 @@ def detect_tb_month_and_year(tb_path: str) -> Tuple[str, int]:
     detected_month = ""
     detected_year = 0
 
+    # ------------------------
+    # First try filename
+    # ------------------------
     for key, name in month_map.items():
         if key in filename_lower:
             detected_month = name
@@ -57,35 +61,83 @@ def detect_tb_month_and_year(tb_path: str) -> Tuple[str, int]:
     if year_match:
         detected_year = int(year_match.group())
 
-    if not detected_month or not detected_year:
+    # If found from filename, return immediately
+    if detected_month and detected_year:
+        logger.info(f"Detected TB period from filename: {detected_month} {detected_year}")
+        return detected_month, detected_year
+
+    ext = Path(tb_path).suffix.lower()
+
+    # ------------------------
+    # TXT fallback
+    # ------------------------
+    if ext == ".txt":
+        try:
+            with open(tb_path, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    text = line.lower()
+
+                    if not detected_month:
+                        for key, name in month_map.items():
+                            if key in text:
+                                detected_month = name
+                                break
+
+                    yr = re.search(r"20\d{2}", line)
+                    if yr:
+                        detected_year = int(yr.group())
+
+                    if detected_month and detected_year:
+                        break
+
+        except Exception as e:
+            logger.warning(f"Could not detect month/year from TXT file: {e}")
+
+    # ------------------------
+    # Excel fallback
+    # ------------------------
+    else:
         try:
             wb = openpyxl.load_workbook(tb_path, read_only=True, data_only=True)
             ws = wb[wb.sheetnames[0]]
+
             for row in ws.iter_rows(min_row=1, max_row=20, values_only=True):
                 for cell in row:
                     if cell is None:
                         continue
+
                     cell_text = str(cell).lower()
+
                     if not detected_month:
                         for key, name in month_map.items():
                             if key in cell_text:
                                 detected_month = name
+
                     yr = re.search(r"20\d{2}", str(cell))
                     if yr:
                         detected_year = int(yr.group())
+
                     if detected_month and detected_year:
                         break
+
                 if detected_month and detected_year:
                     break
+
             wb.close()
+
         except Exception as e:
-            logger.warning(f"Could not detect month/year from TB file content: {e}")
+            logger.warning(f"Could not detect month/year from Excel file: {e}")
 
     logger.info(f"Detected TB period: {detected_month} {detected_year}")
+
     return detected_month, detected_year
 
 
 def read_current_year_tb(tb_path: str) -> pd.DataFrame:
+
+    if Path(tb_path).suffix.lower() == ".txt":
+        return read_txt_trial_balance(tb_path)
+
     wb = openpyxl.load_workbook(tb_path, read_only=True, data_only=True)
     ws = wb[wb.sheetnames[0]]
 
@@ -227,10 +279,27 @@ def read_current_year_tb(tb_path: str) -> pd.DataFrame:
 
     result_df = pd.DataFrame(records)
     logger.info(f"CY TB loaded: {len(result_df)} valid rows")
+    print("\n============= EXCEL DEBUG =============")
+
+    print("Rows :", len(result_df))
+
+    print(result_df.head(10))
+
+    print("Period Activity :", result_df["period_activity"].sum())
+    print("Beginning Balance :", result_df["beginning_balance"].sum())
+    print("Ending Balance :", result_df["ending_balance"].sum())
+    
+    print(result_df.iloc[0][["beginning_balance",
+                         "period_activity",
+                         "ending_balance"]])
     return result_df
 
 
 def read_previous_year_tb(tb_path: str) -> pd.DataFrame:
+
+    if Path(tb_path).suffix.lower() == ".txt":
+        return read_txt_trial_balance(tb_path)
+
     wb = openpyxl.load_workbook(tb_path, read_only=True, data_only=True)
     ws = wb[wb.sheetnames[0]]
 
@@ -359,8 +428,112 @@ def read_previous_year_tb(tb_path: str) -> pd.DataFrame:
 
     result_df = pd.DataFrame(records)
     logger.info(f"PY TB loaded: {len(result_df)} valid rows")
+    
+    print("\n============= EXCEL DEBUG =============")
+
+    print("Rows :", len(result_df))
+
+    print(result_df.head(10))
+
+    print("Period Activity :", result_df["period_activity"].sum())
+    print("Beginning Balance :", result_df["beginning_balance"].sum())
+    print("Ending Balance :", result_df["ending_balance"].sum())
     return result_df
 
+def read_txt_trial_balance(tb_path: str) -> pd.DataFrame:
+    records = []
+
+    with open(tb_path, "r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+
+            # Remove page-break character
+            line = line.replace("\x0c", "").strip()
+
+            if not line:
+                continue
+
+            # Skip report headers
+            if (
+                line.startswith("SLT Primary Ledger")
+                or line.startswith("Account")
+                or line.startswith("-----------")
+                or line.startswith("Currency:")
+                or line.startswith("Ledger:")
+                or line.startswith("Company:")
+                or line.startswith("Company Range:")
+                or line.startswith("Report Date:")
+                or line.startswith("Page:")
+                or "Detail Trial Balance" in line
+                or "Year to date" in line
+            ):
+                continue
+
+            parts = re.split(r"\s{2,}", line)
+
+            if len(parts) < 5:
+                continue
+
+            try:
+                gl_code = parts[0].strip()
+                description = parts[1].strip()
+                flexfield = parts[2].strip()
+
+                beginning_balance = _parse_numeric(parts[3])
+                period_activity = _parse_numeric(parts[4])
+
+                if len(parts) >= 6:
+                    ending_balance = _parse_numeric(parts[5])
+                else:
+                    ending_balance = beginning_balance + period_activity
+
+                if "." not in flexfield:
+                    continue
+
+                segments = flexfield.split(".")
+
+                while len(segments) < 9:
+                    segments.append("0")
+
+                records.append(
+                    {
+                        "gl_code": gl_code,
+                        "description": description,
+                        "flexfield": flexfield,
+                        "cost_center": segments[1],
+                        "location": segments[2],
+                        "business_line": segments[3],
+                        "product": segments[4],
+                        "account": segments[5],
+                        "technology": segments[6],
+                        "intercompany": segments[7],
+                        "project": segments[8],
+                        "beginning_balance": beginning_balance,
+                        "period_activity": period_activity,
+                        "ending_balance": ending_balance,
+                    }
+                )
+
+            except Exception:
+                continue
+
+    df = pd.DataFrame(records)
+    print(df.iloc[0][["beginning_balance",
+                  "period_activity",
+                  "ending_balance"]])
+
+    logger.info(f"TXT Trial Balance loaded: {len(df)} rows")
+
+    print("\n================ TXT DEBUG ================")
+    print(f"Total rows : {len(df)}")
+
+    print("\nFirst 10 rows")
+    print(df.head(10))
+
+    print("\nPeriod Activity Total :", df["period_activity"].sum())
+    print("Beginning Balance Total :", df["beginning_balance"].sum())
+    print("Ending Balance Total :", df["ending_balance"].sum())
+
+    return df
 
 def _parse_numeric(value) -> float:
     if value is None:

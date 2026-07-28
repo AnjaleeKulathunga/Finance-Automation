@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from typing import List, Optional
+from unittest import result
 from utils.logger import logger
 from config import settings
 
@@ -31,13 +32,13 @@ def validate_uploaded_files(
 
     if not tb_current_path or not os.path.exists(tb_current_path):
         result.add_error("Current Year Trial Balance file is missing or not found.")
-    elif not _is_valid_extension(tb_current_path):
-        result.add_error("Current Year Trial Balance must be an Excel file (.xlsx/.xls).")
+    elif not _is_valid_tb_extension(tb_current_path):
+        result.add_error("Current Year Trial Balance must be a .xlsx, .xls or .txt file.")
 
     if not tb_previous_path or not os.path.exists(tb_previous_path):
         result.add_error("Previous Year Trial Balance file is missing or not found.")
-    elif not _is_valid_extension(tb_previous_path):
-        result.add_error("Previous Year Trial Balance must be an Excel file (.xlsx/.xls).")
+    elif not _is_valid_tb_extension(tb_previous_path):
+        result.add_error("Previous Year Trial Balance must be a .xlsx, .xls or .txt file.")
 
     if not budget_path or not os.path.exists(budget_path):
         result.add_error("Revenue Budget Workbook is missing or not found.")
@@ -108,7 +109,29 @@ def validate_budget_workbook(budget_path: str) -> ValidationResult:
 
 def validate_trial_balance(tb_path: str, label: str) -> ValidationResult:
     import openpyxl
+
     result = ValidationResult()
+
+    ext = Path(tb_path).suffix.lower()
+
+    # ---------------- TXT Validation ----------------
+    if ext == ".txt":
+        try:
+            with open(tb_path, "r", encoding="utf-8", errors="ignore") as f:
+                lines = [line.strip() for line in f if line.strip()]
+
+            if len(lines) == 0:
+                result.add_error(f"{label} Trial Balance TXT file is empty.")
+            else:
+                logger.info(f"{label} Trial Balance TXT validated successfully.")
+
+            return result
+
+        except Exception as e:
+            result.add_error(f"Cannot open {label} Trial Balance TXT file: {e}")
+            return result
+
+    # ---------------- Excel Validation (Existing Logic) ----------------
     try:
         wb = openpyxl.load_workbook(tb_path, read_only=True, data_only=True)
     except Exception as e:
@@ -121,7 +144,9 @@ def validate_trial_balance(tb_path: str, label: str) -> ValidationResult:
         return result
 
     ws = wb[wb.sheetnames[0]]
+
     has_data = False
+
     for row in ws.iter_rows(min_row=1, max_row=50, values_only=True):
         for cell in row:
             if cell is not None and str(cell).strip():
@@ -134,9 +159,14 @@ def validate_trial_balance(tb_path: str, label: str) -> ValidationResult:
         result.add_error(f"{label} Trial Balance appears to be empty.")
 
     wb.close()
-    logger.info(f"{label} Trial Balance validated. Sheet: {wb.sheetnames[0]}")
+
+    logger.info(f"{label} Trial Balance Excel validated successfully.")
+
     return result
 
+def _is_valid_tb_extension(file_path: str) -> bool:
+    ext = Path(file_path).suffix.lower()
+    return ext in {".xlsx", ".xls", ".txt"}
 
 def _is_valid_extension(file_path: str) -> bool:
     ext = Path(file_path).suffix.lower()
