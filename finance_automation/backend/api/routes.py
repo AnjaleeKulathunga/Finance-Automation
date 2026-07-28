@@ -1,5 +1,6 @@
 from importlib.resources import files
 import os
+import json
 import time
 import uuid
 import shutil
@@ -35,6 +36,31 @@ router = APIRouter(prefix="/api", tags=["finance"])
 
 uploaded_files_store: dict = {}
 report_jobs: dict = {}
+
+
+def _job_result_path(session_id: str) -> Path:
+    """Return the path for persisting a completed job result to disk."""
+    return settings.OUTPUT_DIR / f"{session_id}_result.json"
+
+
+def _save_job_result(session_id: str, result: dict):
+    """Persist job result dict to a JSON file so all workers can read it."""
+    try:
+        path = _job_result_path(session_id)
+        path.write_text(json.dumps(result), encoding="utf-8")
+    except Exception as exc:
+        logger.warning(f"Could not persist job result for {session_id}: {exc}")
+
+
+def _load_job_result(session_id: str) -> dict | None:
+    """Load a previously persisted job result from disk, or None if not found."""
+    path = _job_result_path(session_id)
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.warning(f"Could not read job result for {session_id}: {exc}")
+    return None
 
 
 DEFAULT_FILES_DIR = settings.TEMPLATE_DIR / "defaults"
@@ -220,7 +246,9 @@ def _run_report_job(session_id: str, user_id: int, user_name: str):
     db = SessionLocal()
     try:
         result = _build_report_for_session(session_id, db, user_id, user_name)
-        report_jobs[session_id] = result.model_dump()
+        job_data = result.model_dump()
+        report_jobs[session_id] = job_data
+        _save_job_result(session_id, job_data)
     except HTTPException as e:
         detail = e.detail
         if isinstance(detail, dict) and "errors" in detail:
@@ -228,13 +256,17 @@ def _run_report_job(session_id: str, user_id: int, user_name: str):
         else:
             message = str(detail)
         logger.error(f"Report job failed for session {session_id}: {message}")
-        report_jobs[session_id] = {"status": "error", "message": message}
+        error_data = {"status": "error", "message": message}
+        report_jobs[session_id] = error_data
+        _save_job_result(session_id, error_data)
     except Exception as e:
         logger.exception(f"Report job failed for session {session_id}: {e}")
-        report_jobs[session_id] = {
+        error_data = {
             "status": "error",
             "message": f"Report generation failed: {str(e)}",
         }
+        report_jobs[session_id] = error_data
+        _save_job_result(session_id, error_data)
     finally:
         db.close()
 
@@ -440,17 +472,42 @@ async def get_report_status(
     session_id: str,
     current_user: User = Depends(get_current_active_user)
 ):
+    # Check in-memory store first (same worker, fastest path)
     job = report_jobs.get(session_id)
     if job:
+        # Backfill in-memory cache from disk for this worker if needed
+        if job.get("status") in ("success", "error"):
+            return job
+        # Still processing — check disk in case another worker already finished
+        disk_result = _load_job_result(session_id)
+        if disk_result:
+            report_jobs[session_id] = disk_result
+            return disk_result
         return job
 
-    generated_files = sorted(settings.OUTPUT_DIR.glob("Revenue_*.pptx"))
+    # Not in this worker's memory — try the persisted disk result first
+    disk_result = _load_job_result(session_id)
+    if disk_result:
+        report_jobs[session_id] = disk_result  # populate local cache
+        return disk_result
+
+    # Last resort: scan output directory (status unknown, return partial info)
+    generated_files = sorted(settings.OUTPUT_DIR.glob(f"Revenue_*.pptx"))
     if generated_files:
         latest = generated_files[-1]
+        # Try to parse month/year from filename: Revenue_{month}_{year}.pptx
+        parts = latest.stem.split("_")  # ["Revenue", month, year]
+        month = parts[1] if len(parts) >= 2 else ""
+        year = int(parts[2]) if len(parts) >= 3 and parts[2].isdigit() else 0
         return {
             "status": "success",
             "filename": latest.name,
             "message": "Report generated successfully.",
+            "report_month": month,
+            "report_year": year,
+            "total_mapped": 0,
+            "unmapped_count": 0,
+            "processing_time_seconds": 0.0,
         }
 
     raise HTTPException(
