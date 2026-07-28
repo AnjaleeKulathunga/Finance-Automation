@@ -26,6 +26,10 @@ async function readApiError(response, fallback) {
   return text ? `${fallback}: ${text.slice(0, 180)}` : fallback;
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function getAuthHeaders(headers = {}) {
   const token = localStorage.getItem("token");
   if (token) {
@@ -69,7 +73,36 @@ export async function generateReport(sessionId) {
     throw new Error(await readApiError(response, "Report generation failed"));
   }
 
-  return response.json();
+  const result = await response.json();
+  if (result.status !== "processing") {
+    return result;
+  }
+
+  return pollReportStatus(sessionId);
+}
+
+export async function pollReportStatus(sessionId) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    await wait(2000);
+
+    const response = await fetch(`${API_BASE}/report-status/${sessionId}`, {
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(await readApiError(response, "Failed to fetch report status"));
+    }
+
+    const result = await response.json();
+    if (result.status === "success") {
+      return result;
+    }
+    if (result.status === "error") {
+      throw new Error(result.message || "Report generation failed");
+    }
+  }
+
+  throw new Error("Report generation is taking longer than expected. Please try again later.");
 }
 
 export function getDownloadUrl(filename) {
