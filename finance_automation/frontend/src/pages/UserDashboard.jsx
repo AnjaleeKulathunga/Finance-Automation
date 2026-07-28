@@ -5,7 +5,6 @@ import {
   ThemeProvider,
   createTheme,
   CssBaseline,
-  Container,
   Box,
   Button,
   Paper,
@@ -16,6 +15,7 @@ import {
   LinearProgress,
   Typography,
   Chip,
+  Tooltip,
 } from "@mui/material";
 import {
   CloudUpload as UploadIcon,
@@ -25,6 +25,12 @@ import {
   Delete as DeleteIcon,
   TableChart as UnmappedIcon,
   ExitToApp as LogoutIcon,
+  Dashboard as DashboardIcon,
+  CheckCircle as CheckCircleIcon,
+  Schedule as ScheduleIcon,
+  Refresh as RefreshIcon,
+  Person as PersonIcon,
+  VerifiedUser as VerifiedUserIcon,
 } from "@mui/icons-material";
 import {
   uploadFiles,
@@ -52,6 +58,11 @@ const FILE_CONFIGS = [
   { key: "tb_previous", label: "Previous Year Trial Balance", accept: ".xlsx,.xls", color: "#4A90B8" },
   { key: "budget", label: "Revenue Budget Workbook", accept: ".xlsx,.xls", color: "#7AB648" },
   { key: "mapping", label: "Revenue Mapping Workbook", accept: ".xlsx,.xls", color: "#E8A838" },
+];
+
+const NAV_ITEMS = [
+  { label: "Dashboard", icon: DashboardIcon, path: "/dashboard", active: true },
+  { label: "Profile", icon: PersonIcon, path: "/profile" },
 ];
 
 export default function UserDashboard() {
@@ -91,6 +102,15 @@ export default function UserDashboard() {
     files.tb_previous &&
     (files.budget || adminConfig.default_budget_active) &&
     (files.mapping || adminConfig.default_mapping_active);
+
+  const currentYear = new Date().getFullYear();
+  const getDefaultLabel = (key) => {
+    const filename =
+      key === "budget"
+        ? adminConfig.default_budget_filename
+        : adminConfig.default_mapping_filename;
+    return filename || "system global template";
+  };
 
   const handleFileChange = useCallback((key, event) => {
     const file = event.target.files[0];
@@ -201,65 +221,110 @@ export default function UserDashboard() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
 
-      <div className="min-h-screen bg-[#f4f7fb]">
-        <div className="bg-[#061826] text-white px-6 lg:px-10 py-4 flex justify-between items-center shadow-[0_12px_30px_rgba(6,24,38,0.18)] font-sans border-b border-white/10">
-          <div className="flex items-center gap-5 min-w-0">
-            <img src="/logo.png" alt="SLT Mobitel Logo" className="h-10 object-contain shrink-0" />
-            <span className="h-8 w-[1px] bg-white/15 hidden sm:block" />
-            <div className="min-w-0">
-              <span className="block font-extrabold text-lg tracking-normal truncate">Finance Revenue Automation</span>
-              <span className="hidden sm:block text-xs font-semibold text-slate-400">Revenue reporting workspace</span>
+      <div className="min-h-screen bg-[linear-gradient(180deg,#edf4fb_0%,#f8fafc_46%,#eef3f8_100%)] font-sans text-slate-900">
+        <div className="flex min-h-screen">
+          <aside className="hidden w-[284px] shrink-0 flex-col border-r border-white/10 bg-[#071b2a] text-white shadow-[18px_0_48px_rgba(7,27,42,0.16)] lg:flex">
+            <div className="px-7 pb-6 pt-7">
+              <div className="rounded-lg border border-white/10 bg-white/8 p-4">
+                <img src="/logo.png" alt="SLT Mobitel Logo" className="h-12 object-contain" />
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:block text-right">
-              <span className="block text-sm font-extrabold">{currentUser?.full_name}</span>
-              <span className="block text-xs font-semibold text-emerald-400">Status: {currentUser?.status}</span>
-            </div>
-            <Chip
-              label={currentUser?.role || "User"}
-              size="small"
-              sx={{
-                display: { xs: "none", md: "inline-flex" },
-                color: "#bbf7d0",
-                borderColor: "rgba(187,247,208,0.35)",
-                backgroundColor: "rgba(22,163,74,0.12)",
-                fontWeight: 800,
-              }}
-              variant="outlined"
-            />
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-[#E1251B] hover:bg-[#C11812] text-white rounded-lg text-sm font-extrabold transition-all shadow-md active:scale-95"
-          >
-            <LogoutIcon fontSize="small" />
-            <span>Sign Out</span>
-          </button>
-          </div>
-        </div>
 
-        <Container maxWidth="xl" sx={{ py: { xs: 3, md: 5 } }}>
-          <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 2, border: "1px solid #dce5ee", boxShadow: "0 18px 42px rgba(15, 23, 42, 0.08)" }}>
-            <Box sx={{ mb: 3, display: "flex", alignItems: { xs: "flex-start", md: "center" }, justifyContent: "space-between", gap: 2, flexDirection: { xs: "column", md: "row" } }}>
-              <Box>
-                <Typography variant="h5" sx={{ fontWeight: 900, color: "#082f49" }}>
-                  Source Workbooks
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 0.75, color: "#64748b", fontWeight: 600 }}>
-                  Current and previous trial balances are required. Admin defaults can cover budget and mapping.
-                </Typography>
-              </Box>
-              <Chip
-                label={allFilesUploaded ? "Generation enabled" : "Waiting for files"}
-                sx={{
-                  height: 34,
-                  borderRadius: 1.5,
-                  fontWeight: 900,
-                  color: allFilesUploaded ? "#166534" : "#475569",
-                  backgroundColor: allFilesUploaded ? "#dcfce7" : "#f1f5f9",
-                }}
+            <nav className="px-4">
+              {NAV_ITEMS.map(({ label, icon: Icon, path, active }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => navigate(path)}
+                  className={`mb-2 flex h-12 w-full items-center gap-3 rounded-lg px-4 text-left text-sm font-extrabold transition ${
+                    active
+                      ? "bg-white text-[#071b2a] shadow-lg"
+                      : "text-slate-300 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <Icon fontSize="small" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </nav>
+          </aside>
+
+          <main className="flex min-w-0 flex-1 flex-col">
+            <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 px-4 py-3 shadow-sm backdrop-blur md:px-8">
+              <div className="relative flex items-center justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-4">
+                  <img src="/logo.png" alt="SLT Mobitel Logo" className="h-9 object-contain lg:hidden" />
+                  <div className="min-w-0 text-left md:absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:text-center">
+                    <h2 className="truncate text-lg font-black text-[#082f49] md:text-2xl">Finance Revenue Automation</h2>
+                    <p className="hidden text-sm font-bold text-slate-500 sm:block">Professional revenue reporting dashboard</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/profile")}
+                    className="hidden items-center rounded-lg border border-slate-200 bg-white p-2 shadow-[0_8px_20px_rgba(15,23,42,0.06)] transition hover:border-sky-200 hover:bg-sky-50 md:flex"
+                    aria-label="Open user profile"
+                  >
+                    <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#082f49] text-white shadow-sm">
+                      <PersonIcon sx={{ fontSize: 22 }} />
+                    </div>
+                  </button>
+                  <Tooltip title="Sign out">
+                    <Button
+                      onClick={handleLogout}
+                      variant="contained"
+                      startIcon={<LogoutIcon />}
+                      sx={{
+                        minWidth: { xs: 42, sm: "auto" },
+                        px: { xs: 1.2, sm: 2.4 },
+                        height: 42,
+                        backgroundColor: "#E1251B",
+                        textTransform: "none",
+                        fontWeight: 900,
+                        borderRadius: 1.5,
+                        boxShadow: "0 10px 18px rgba(225,37,27,0.2)",
+                        "&:hover": { backgroundColor: "#C11812" },
+                      }}
+                    >
+                      <span className="hidden sm:inline">Sign Out</span>
+                    </Button>
+                  </Tooltip>
+                </div>
+              </div>
+            </header>
+
+            <div className="flex-1 px-4 py-6 md:px-8 lg:px-10">
+              <StatusPanel
+                activeStep={activeStep}
+                uploadResult={uploadResult}
+                reportResult={reportResult}
+                error={error}
               />
-            </Box>
+
+              <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 2, border: "1px solid #dce5ee", boxShadow: "0 18px 42px rgba(15, 23, 42, 0.08)", background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)" }}>
+                <Box sx={{ mb: 3, display: "flex", alignItems: { xs: "flex-start", md: "center" }, justifyContent: "space-between", gap: 2, flexDirection: { xs: "column", md: "row" } }}>
+                  <Box>
+                    <Typography variant="h5" sx={{ fontWeight: 900, color: "#082f49" }}>
+                      Source Workbooks
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 0.75, color: "#64748b", fontWeight: 600 }}>
+                      Current and previous trial balances are required. Admin defaults can cover budget and mapping.
+                    </Typography>
+                  </Box>
+                  <Chip
+                    icon={allFilesUploaded ? <CheckCircleIcon /> : <ScheduleIcon />}
+                    label={allFilesUploaded ? "Generation enabled" : "Waiting for files"}
+                    sx={{
+                      height: 36,
+                      borderRadius: 1.5,
+                      fontWeight: 900,
+                      color: allFilesUploaded ? "#166534" : "#475569",
+                      backgroundColor: allFilesUploaded ? "#dcfce7" : "#f1f5f9",
+                    }}
+                  />
+                </Box>
 
           <Grid container spacing={3}>
             {FILE_CONFIGS.map((config) => {
@@ -279,14 +344,14 @@ export default function UserDashboard() {
                       borderRadius: 2,
                       backgroundColor: !isUploaded && isDefaultActive ? "#F8FCF6" : "#FFFFFF",
                       transition: "all 0.2s",
-                      boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
-                      "&:hover": { borderColor: config.color, boxShadow: "0 14px 30px rgba(15, 23, 42, 0.08)" },
+                      boxShadow: "0 10px 24px rgba(15, 23, 42, 0.045)",
+                      "&:hover": { borderColor: config.color, transform: "translateY(-2px)", boxShadow: "0 16px 34px rgba(15, 23, 42, 0.09)" },
                     }}
                   >
                     <CardContent sx={{ p: 3 }}>
                       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
                         <Box sx={{ display: "flex", alignItems: "center" }}>
-                          <Box sx={{ width: 34, height: 34, borderRadius: 1.5, display: "grid", placeItems: "center", backgroundColor: `${config.color}14`, mr: 1.5 }}>
+                          <Box sx={{ width: 38, height: 38, borderRadius: 1.5, display: "grid", placeItems: "center", backgroundColor: `${config.color}14`, mr: 1.5 }}>
                             <FileIcon sx={{ color: config.color, fontSize: 21 }} />
                           </Box>
                           <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1f2937" }}>
@@ -336,7 +401,7 @@ export default function UserDashboard() {
                       ) : isDefaultActive ? (
                         <Box>
                           <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontStyle: "italic" }}>
-                            Using system global template configured by administrator
+                            Using {getDefaultLabel(config.key)} configured by administrator
                           </Typography>
                           <Button
                             size="small"
@@ -361,7 +426,7 @@ export default function UserDashboard() {
                           startIcon={<UploadIcon />}
                           sx={{
                             mt: 1,
-                            py: 2.2,
+                            py: 2,
                             borderStyle: "dashed",
                             textTransform: "none",
                             fontWeight: 900,
@@ -456,6 +521,7 @@ export default function UserDashboard() {
                 size="large"
                 onClick={handleReset}
                 disabled={loading}
+                startIcon={<RefreshIcon />}
                 sx={{ textTransform: "none", fontWeight: 900, borderRadius: 1.5 }}
               >
                 Reset
@@ -463,22 +529,19 @@ export default function UserDashboard() {
             )}
           </Box>
         </Paper>
+            </div>
 
-        <StatusPanel
-          activeStep={activeStep}
-          uploadResult={uploadResult}
-          reportResult={reportResult}
-          error={error}
-        />
-
-        <Paper elevation={0} sx={{ p: 2.5, mt: 3, backgroundColor: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 2 }}>
-          <Typography variant="caption" color="text.secondary">
-            <strong>Required files:</strong> Current Year Trial Balance and Previous Year Trial Balance are always required.
-            If defaults are not set by the Admin, you must also provide the Revenue Budget Workbook and Revenue Mapping Workbook.
-            All files must be in .xlsx format. System detects month/year from Trial Balance filename automatically.
-          </Typography>
-        </Paper>
-      </Container>
+            <footer className="border-t border-slate-200 bg-white px-4 py-5 md:px-8 lg:px-10">
+              <div className="mx-auto flex max-w-5xl flex-col items-center justify-center gap-2 text-center">
+                <div className="flex items-center gap-2 text-[#082f49]">
+                  <VerifiedUserIcon fontSize="small" />
+                  <span className="text-sm font-black">Finance Revenue Automation</span>
+                </div>
+                <p className="text-xs font-semibold text-slate-500">© {currentYear} SLT-MOBITEL</p>
+              </div>
+            </footer>
+          </main>
+        </div>
       </div>
     </ThemeProvider>
   );
